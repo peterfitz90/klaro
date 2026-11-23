@@ -15,15 +15,22 @@ const walk = dir => {
 };
 walk(root);
 
+// The demo fakes (src/demo, npm run dev:demo) must never be in a real build.
+const DEMO_MARKERS = ['DEMO: fake sign-in', 'Demo: sign-in is not available here'];
+
 let bad = 0;
 for (const f of files) {
-  for (const hit of findSecrets(readFileSync(f, 'utf8'))) {
+  const text = readFileSync(f, 'utf8');
+  for (const hit of findSecrets(text)) {
     bad++;
     console.error(`${f}: ${hit}`);
+  }
+  for (const m of DEMO_MARKERS) {
+    if (text.includes(m)) { bad++; console.error(`${f}: contains the demo fakes ("${m}")`); }
   }
 }
 if (bad) {
   console.error(`check-bundle: ${bad} finding(s) in ${files.length} file(s). The bundle must not contain server secrets.`);
   process.exit(1);
 }
-console.log(`check-bundle: ${files.length} file(s) in ${root}, no server secrets found.`);
+console.log(`check-bundle: ${files.length} file(s) in ${root}, no server secrets and no demo fakes found.`);

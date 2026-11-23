@@ -32,7 +32,7 @@ for (const [kname, key] of KEYS) {
     const isPublicRoot = id === 'P4';
     let shown = t;
     if (isPublicRoot || t.length > 600) {
-      let paths = '?'; try { paths = Object.keys(JSON.parse(t).paths ?? {}).length; } catch {}
+      let paths = '?'; try { paths = Object.keys(JSON.parse(t).paths ?? {}).length; } catch { paths = "not JSON"; }
       shown = `(${t.length} bytes, sha256 ${createHash('sha256').update(t).digest('hex').slice(0,16)}, OpenAPI paths: ${paths})`;
     }
     const leakNote = isPublicRoot ? (leaks.filter(n=>!['plans','connections','drivers','entities'].includes(n)).length ? ` fpa-only names: ${leaks}` : '') : (leaks.length ? `  NAMES IN RESPONSE: ${leaks.join(',')}` : '  names in response: none');

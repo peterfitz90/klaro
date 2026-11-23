@@ -1,20 +1,36 @@
-import { Route, Routes } from 'react-router-dom';
+// Routes. Signed-out: /sign-in and /sign-up (Klaro's own, embedded Clerk). Everything else needs a
+// signed-in user (RequireAuth). The current entity lives in the URL: /e/:entityId/<task>.
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { CashPage } from '../features/cash/CashPage';
+import { ComparePage } from '../features/compare/ComparePage';
+import { ConnectPage } from '../features/connect/ConnectPage';
+import { CreateEntityPage, EntityListPage, HomeRedirect } from '../features/entities/pages';
+import { PlanPage } from '../features/plan/PlanPage';
+import { ReportPage } from '../features/report/ReportPage';
+import { AuthProvider, RequireAuth, SignInPage, SignUpPage } from './auth';
 import { NotFound } from './NotFound';
+import { EntityLayout } from './shell/EntityLayout';
 
-// B1 scaffold only: sign-in, entities and the shell arrive in B4.
 export function App() {
   return (
-    <Routes>
-      <Route
-        path="/"
-        element={
-          <main className="page">
-            <h1 className="topbar-title" style={{ margin: '24px 0 4px' }}>Klaro</h1>
-            <p className="topbar-sub">by Ledgrly</p>
-          </main>
-        }
-      />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <AuthProvider>
+      <Routes>
+        <Route path="/sign-in/*" element={<SignInPage />} />
+        <Route path="/sign-up/*" element={<SignUpPage />} />
+        <Route path="/" element={<RequireAuth><HomeRedirect /></RequireAuth>} />
+        <Route path="/entities" element={<RequireAuth><EntityListPage /></RequireAuth>} />
+        <Route path="/entities/new" element={<RequireAuth><CreateEntityPage /></RequireAuth>} />
+        <Route path="/e/:entityId" element={<RequireAuth><EntityLayout /></RequireAuth>}>
+          <Route index element={<Navigate to="plan" replace />} />
+          <Route path="plan" element={<PlanPage />} />
+          <Route path="compare" element={<ComparePage />} />
+          <Route path="cash" element={<CashPage />} />
+          <Route path="report" element={<ReportPage />} />
+          <Route path="connect" element={<ConnectPage />} />
+          <Route path="*" element={<NotFound inShell />} />
+        </Route>
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </AuthProvider>
   );
 }

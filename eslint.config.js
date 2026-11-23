@@ -7,7 +7,7 @@ export default tseslint.config(
   { ignores: ['dist', 'node_modules', 'coverage', 'db/out'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.strict],
-    files: ['src/**/*.{ts,tsx}', 'vite.config.ts'],
+    files: ['src/**/*.{ts,tsx}', 'vite.config.ts', 'vite.demo.config.ts'],
     languageOptions: { ecmaVersion: 2022, globals: { ...globals.browser } },
     plugins: { 'react-hooks': reactHooks },
     rules: {
