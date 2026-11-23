@@ -3,11 +3,10 @@ import type { ReactNode } from 'react';
 
 /**
  * KPI strip skeleton. Phase 0 has no actuals, so every tile says so; it never shows a 0 that could
- * be read as a real figure. Which KPIs Klaro shows is a product decision for Peter; these four are
- * placeholders.
+ * be read as a real figure. The four labels are Peter's choice (23 Nov 2026, after B4).
  */
 export function KpiStrip() {
-  const tiles = ['Revenue, year to date', 'Gross margin', 'Cash balance', 'Cash runway'];
+  const tiles = ['Revenue (month)', 'Net profit', 'Cash balance', 'Runway (months)'];
   return (
     <section className="kpi-grid" aria-label="Key figures (no data yet)">
       {tiles.map(label => (
