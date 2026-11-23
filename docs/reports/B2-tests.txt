@@ -117,3 +117,11 @@ Run D1  dryrun_apply.sql     0 failure(s), 10 pass(es); plpgsql_check: 8 functio
 Run R1  test_down.sql        NOT RUN: connector confirmation expired after 10 minutes
 Run R2  test_down.sql        NOT RUN: connector confirmation expired again
 Read-only check 14:31 UTC: Supabase migration history 102 rows; no fpa or fpa_test schema; plpgsql_check not installed.
+Run R3  test_down.sql        0 failure(s), 5 pass(es)  (14:47:39 UTC, byte-identical, confirmation approved)
+
+------------------------------------------------------------------------------------------------
+B3 APPLY, 23 Nov 2026
+Apply   apply_0001.sql (sha 733fbb60..., byte-identical, unstripped) committed; applied_at 14:50:19 UTC.
+Read-only check 14:51:35 UTC: migration history 102; fpa.schema_migrations = 0001 / afacaac2...;
+14 tables (RLS), 40 policies, 20 triggers, 20 functions (body hashes = repo), grants as evidence,
+anon/service_role no USAGE, 0 VAT rules, 0 data rows. Details: docs/reports/B3.md.

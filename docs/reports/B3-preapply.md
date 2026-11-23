@@ -1,9 +1,8 @@
 # B3 pre-apply: which test runs covered the exact bytes to be applied
 
-23 Nov 2026. **Status: NOT applied yet.** Three of the four tests have passed on the final text. The
-fourth, the rollback test, needs a confirmation in the Supabase connector. Both attempts expired
-unanswered (10 minutes each), so it has not run on the final text. You asked for every test to be
-rerun after the lock change, so I stopped before applying.
+23 Nov 2026. **Status: all four tests passed on the final text; applied at 14:50:19 UTC.**
+See `B3.md` for the apply and the read-only checks. (The first two rollback-test attempts expired
+in the connector; the third, R3, ran and passed.)
 
 ## Changes since B2 (your conditions 1 and 2)
 
@@ -55,6 +54,7 @@ with each file in `db/out/`.
 | D1 | `db/out/dryrun_apply.sql` | `617f8d9cfe6f47bf…` | yes, exactly | **0 failures, 10 passes; plpgsql_check: 8 functions, 0 findings** |
 | R1 | `db/out/test_down.sql` | `2c43b22f81d9deae…` | yes, exactly | **Not run:** the connector's confirmation expired after 10 minutes |
 | R2 | `db/out/test_down.sql` (retry) | same | yes, exactly | **Not run:** the confirmation expired again |
+| R3 | `db/out/test_down.sql` (14:47:39 UTC) | `2c43b22f81d9deae…` | yes, exactly | **0 failures, 5 passes** |
 
 All earlier runs (B2) were sent with comments removed, or on earlier revisions of 0001. None of them
 is counted above.
@@ -66,10 +66,8 @@ The read-only check afterwards (14:31 UTC) found:
 
 Nothing persisted.
 
-## What's needed from you
+## Coverage, final
 
-1. Be at the screen so the connector's confirmation prompt for the rollback test can be approved.
-   The test contains `DROP SCHEMA fpa CASCADE`, inside a transaction that is always rolled back.
-   The earlier comment-stripped runs never prompted; these two did.
-2. Once it passes, I'll apply `db/out/apply_0001.sql` exactly as above, then run the read-only checks.
-   The apply itself may also ask for a confirmation.
+Every applied file is covered by a complete, passing run on its exact bytes (S1, V1, D1). The
+rollback file, which is not applied, is covered by R3. Then `db/out/apply_0001.sql` was sent and
+matched byte for byte (sha `733fbb60…`). See `B3.md`.
