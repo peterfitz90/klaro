@@ -1,0 +1,64 @@
+/* Base styles and primitives, copied from Ledgrly (see PROVENANCE.md) and adapted:
+   var(--white) replaced by var(--surface); old rgba(29,107,114,...) and rgba(220,38,38,...)
+   literals replaced by the current accent and danger; visible :focus-visible rings and 44px
+   tap targets added for phones. */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body, #root { min-height: 100%; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 10px; }
+:focus-visible { outline: none; box-shadow: var(--focus); border-radius: var(--radius-sm); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Layout */
+.page { max-width: 720px; margin: 0 auto; padding: 16px; }
+.page-wide { max-width: 1200px; margin: 0 auto; padding: 16px 24px; }
+.topbar { min-height: 56px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; gap: 12px; }
+.topbar-title { font-family: var(--serif); font-size: 18px; font-weight: 600; }
+.topbar-sub { font-size: 12px; color: var(--text-muted); }
+
+/* Cards */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); }
+.card-header { padding: 11px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; min-height: 40px; }
+.card-title { font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-muted); }
+.card-body { padding: 14px 16px; }
+.pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* Forms: every input has a visible label (.f-label, a real <label>) */
+.f-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.f-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.f-input { min-height: var(--tap); background: var(--surface-2); border: 1px solid var(--border-2); border-radius: var(--radius-sm); padding: 8px 12px; font-size: 16px; font-family: var(--font); color: var(--text); outline: none; transition: border-color 0.14s, box-shadow 0.14s; }
+.f-input:focus, .f-input:focus-visible { border-color: var(--accent); box-shadow: var(--focus); }
+.f-hint { font-size: 12px; color: var(--text-muted); }
+.f-error { font-size: 13px; color: var(--danger); }
+
+/* Buttons */
+.btn { min-height: var(--tap); padding: 8px 18px; border-radius: var(--radius-sm); font-size: 15px; font-weight: 600; font-family: var(--font); cursor: pointer; border: none; transition: background 0.15s, box-shadow 0.15s; }
+.btn-p { background: var(--accent); color: #fff; }
+.btn-p:hover { background: var(--accent-2); }
+.btn-s { background: var(--surface); color: var(--text-muted); border: 1px solid var(--border-2); }
+.btn-s:hover { background: var(--surface-2); color: var(--text); }
+.btn-d { background: var(--danger-dim); color: var(--danger); border: 1px solid rgba(248,113,113,0.3); }
+.btn-sm { min-height: 32px; padding: 5px 12px; font-size: 13px; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+.btn-p:disabled, .btn-p:disabled:hover { background: var(--accent); }
+
+/* Tables */
+.gl-table { width: 100%; border-collapse: collapse; }
+.gl-table th { font-size: 10px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); padding: 10px 16px; text-align: left; background: var(--surface-2); border-bottom: 1px solid var(--border); font-weight: 600; }
+.gl-table td { padding: 9px 16px; font-size: 13px; border-bottom: 1px solid var(--border); }
+.gl-table tr:nth-child(even) td { background: rgba(255,255,255,0.025); }
+.gl-table tr:hover td { background: rgba(255,255,255,0.04); }
+.gl-table .r, .gl-table th.r { text-align: right; }
+.gl-table .mono { font-family: var(--mono); font-size: 12px; }
+
+/* Messages: an error is always shown as an error, never as an empty result */
+.msg { border-radius: var(--radius-sm); padding: 10px 14px; font-size: 14px; }
+.msg-error { background: var(--danger-dim); color: var(--danger); border: 1px solid rgba(248,113,113,0.3); }
+.msg-warn { background: var(--warn-dim); color: var(--warn); }
+.msg-ok { background: var(--accent-dim); color: var(--accent); }
+.loading { color: var(--text-muted); font-family: var(--mono); font-size: 12px; padding: 16px 0; }
+
+@media print { .no-print { display: none !important; } }

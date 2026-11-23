@@ -1,0 +1,22 @@
+/* Design tokens, copied from Ledgrly (see PROVENANCE.md). Dark only.
+   Not copied: --white (it was #141b18, the surface colour, under a misleading name) and
+   --surface-1 (used in Ledgrly but never defined). Use --surface instead of either. */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=Source+Code+Pro:wght@400;500&display=swap');
+
+:root {
+  color-scheme: dark; /* native date pickers, selects and scrollbars render dark */
+  --bg: #0c1210; --surface: #141b18; --surface-2: #1a2320; --surface-3: #1f2a27;
+  --border: rgba(255,255,255,0.07); --border-2: rgba(255,255,255,0.12);
+  --text: #e8edeb; --text-muted: #8b9591; --text-faint: #5c6662;
+  --accent: #10b981; --accent-2: #34d399; --accent-dim: rgba(16,185,129,0.12);
+  --warn: #fbbf24; --warn-dim: rgba(251,191,36,0.12);
+  --danger: #f87171; --danger-dim: rgba(248,113,113,0.12);
+  --info: #60a5fa;
+  --radius-card: 14px; --radius-pill: 999px; --radius: 8px; --radius-sm: 6px;
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.3); --shadow: 0 4px 12px rgba(0,0,0,0.4);
+  --focus: 0 0 0 3px rgba(16,185,129,0.45);
+  --tap: 44px; /* minimum tap target on touch screens */
+  --font: 'Inter', system-ui, -apple-system, sans-serif;
+  --mono: 'Source Code Pro', ui-monospace, monospace;
+  --serif: 'Playfair Display', Georgia, serif;
+}

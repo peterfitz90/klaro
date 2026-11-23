@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+.vercel
+# Every local env file: secrets never enter the repo. Only .env.example (names only) is tracked.
+.env
+.env.*
+!.env.example
+db/out/

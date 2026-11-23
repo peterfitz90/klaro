@@ -1,0 +1,3 @@
+# Migration checksums are taken over LF line endings; keep SQL as LF in every checkout.
+*.sql text eol=lf
+* text=auto
