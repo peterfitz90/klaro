@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { anonKeyProblem, clerkKeyProblem, supabaseUrlProblem } from './src/lib/config';
 
 // Local sign-in. The shared Clerk production instance accepts only https://<name>.ledgrly.ie on the
 // default port (localhost and any port are refused: docs/reports/B4.md). `npm run dev:ledgrly` serves
@@ -19,7 +20,20 @@ function ledgrlyDevServer(mode: string, command: string) {
   return { host: '127.0.0.1', port: 443, strictPort: true, allowedHosts: [host], https: { cert: readFileSync(cert), key: readFileSync(key) } };
 }
 
-export default defineConfig(({ mode, command }) => ({
+// On Vercel (VERCEL=1) a build with a wrong public value fails, so it never goes live. CI and local
+// builds have no values and are not checked here; the app checks again at start-up.
+function checkDeployedEnv(mode: string, command: string) {
+  if (command !== 'build' || !process.env.VERCEL) return;
+  const env = loadEnv(mode, process.cwd(), 'VITE_');
+  const problems = [
+    clerkKeyProblem(env.VITE_CLERK_PUBLISHABLE_KEY, true),
+    supabaseUrlProblem(env.VITE_SUPABASE_URL),
+    anonKeyProblem(env.VITE_SUPABASE_ANON_KEY),
+  ].filter(Boolean);
+  if (problems.length) throw new Error(`Vercel environment variables are wrong: ${problems.join(' | ')}`);
+}
+
+export default defineConfig(({ mode, command }) => (checkDeployedEnv(mode, command), {
   plugins: [react()],
   // Only VITE_-prefixed variables reach the browser bundle. Server secrets never do
   // (scripts/check-bundle.mjs checks the built output).

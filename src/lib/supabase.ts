@@ -3,6 +3,7 @@
 // default schema fpa, so row security sees auth.jwt()->>'sub'. Without a token a request runs as
 // anon, which has no access to fpa at all: it fails, it does not leak.
 import { createClient } from '@supabase/supabase-js';
+import { anonKeyProblem, supabaseUrlProblem } from './config';
 import { AppError } from './errors';
 
 type TokenGetter = () => Promise<string | null>;
@@ -27,7 +28,8 @@ export function fpaClient(): ReturnType<typeof make> {
   if (client) return client;
   const url = import.meta.env.VITE_SUPABASE_URL;
   const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  if (!url || !key) throw new AppError('Klaro is not configured (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY).');
+  const problem = supabaseUrlProblem(url) ?? anonKeyProblem(key);
+  if (problem || !url || !key) throw new AppError(`Klaro is not configured: ${problem ?? 'missing value'}`);
   client = make(url, key);
   return client;
 }

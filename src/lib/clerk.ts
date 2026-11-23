@@ -3,11 +3,14 @@
 // them: ClerkProvider and every sign-in, sign-up and sign-out pass Klaro's own paths, and the
 // destination after sign-in is Klaro's own `return` parameter, checked here to be a path on Klaro's
 // own origin. Clerk's `redirect_url` is never used (see docs/reports/B4.md).
+import { clerkKeyProblem } from './config';
 import { AppError } from './errors';
 
 export function clerkPublishableKey(): string {
   const key = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-  if (!key) throw new AppError('Klaro is not configured (VITE_CLERK_PUBLISHABLE_KEY).');
+  // A production build (npm run build, as on Vercel) must be on the shared live instance.
+  const problem = clerkKeyProblem(key, import.meta.env.PROD);
+  if (problem || !key) throw new AppError(`Klaro is not configured: ${problem ?? 'missing value'}`);
   return key;
 }
 

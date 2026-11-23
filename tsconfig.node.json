@@ -20,6 +20,7 @@
   },
   "include": [
     "vite.config.ts",
-    "vite.demo.config.ts"
+    "vite.demo.config.ts",
+    "src/lib/config.ts"
   ]
 }
