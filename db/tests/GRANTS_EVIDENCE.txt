@@ -1,0 +1,115 @@
+GRANTS AND EXECUTE EVIDENCE: fpa schema (migration 0001)
+Source: db/out/test_0001.sql (built by db/bundle.mjs from db/migrations/0001_fpa_schema.sql
+sha256 c536684729073cd6551e607af14ec24d876a1d8e8535871e8a3fd785835ee8bb (current) and
+db/tests/0001_fpa_schema.test.sql). Run on 23 Nov 2026 on the production Supabase project through the
+Supabase connector, inside BEGIN ... and ended by RAISE: rolled back, nothing persisted (confirmed
+afterwards by a read-only query, see docs/reports/B2-tests.txt). The connector was sent the bundle
+with SQL comments removed; apart from comments and blank lines it is the bundle file.
+The text below is the raised message, uncut, with the "\n" escapes turned into line breaks.
+
+ERROR:  P0001: 0 failure(s), 625 pass(es)
+
+== Schema fpa ACL ==
+postgres=UC/postgres, authenticated=U/postgres (owner postgres)
+USAGE: anon=f authenticated=t service_role=f PUBLIC=f
+
+== Tables: row security and full ACL (relacl), less the owner entry postgres=arwdDxtm/postgres ==
+actuals_monthly: rls=t authenticated=r/postgres
+connections: rls=t authenticated=r/postgres
+driver_values: rls=t authenticated=rd/postgres
+drivers: rls=t authenticated=rd/postgres
+entities: rls=t authenticated=r/postgres
+entity_members: rls=t authenticated=r/postgres
+line_map: rls=t authenticated=rd/postgres
+packs: rls=t authenticated=rd/postgres
+plan_lines: rls=t authenticated=rd/postgres
+plan_versions: rls=t authenticated=rd/postgres
+plans: rls=t authenticated=rd/postgres
+scenarios: rls=t authenticated=rd/postgres
+schema_migrations: rls=t (owner only)
+vat_rules: rls=t authenticated=r/postgres
+Every table carries the owner entry: true
+
+== Column-level grants (pg_attribute.attacl) ==
+connections: INSERT(entity_id,source_type) UPDATE(status)
+driver_values: INSERT(driver_id,scenario_id,period,value) UPDATE(value)
+drivers: INSERT(plan_id,key,label,unit,kind) UPDATE(label,unit,kind)
+entities: UPDATE(name,vat_scheme,vat_cycle_anchor)
+line_map: INSERT(connection_id,account_code,plan_line,vat_rate_code) UPDATE(plan_line,vat_rate_code)
+packs: INSERT(version_id,scenario_id,period,narrative,file_path) UPDATE(narrative,file_path)
+plan_lines: INSERT(version_id,scenario_id,plan_line,period,amount,origin) UPDATE(amount,origin)
+plan_versions: INSERT(plan_id,kind,name,based_on_version_id) UPDATE(name,locked_at)
+plans: INSERT(entity_id,name,fiscal_year_start,horizon_months) UPDATE(name,fiscal_year_start,horizon_months)
+scenarios: INSERT(version_id,name,is_base) UPDATE(name,is_base)
+(all column grants above are to authenticated; anon, service_role and PUBLIC hold none: true)
+
+== Policies (40, all TO authenticated only: true; "fpa." and "::text" removed from the expressions) ==
+actuals_monthly_read SELECT using is_entity_member(entity_id, 'viewer')
+connections_owner_insert INSERT check (is_entity_member(entity_id, 'owner') AND (status = 'pending'))
+connections_owner_update UPDATE using is_entity_member(entity_id, 'owner') check (is_entity_member(entity_id, 'owner') AND (status = ANY (ARRAY['pending', 'disabled'])))
+connections_read SELECT using is_entity_member(entity_id, 'viewer')
+driver_values_insert INSERT check (member_for_driver(driver_id, 'editor') AND member_for_scenario(scenario_id, 'editor'))
+driver_values_read SELECT using (member_for_driver(driver_id, 'viewer') AND member_for_scenario(scenario_id, 'viewer'))
+driver_values_remove DELETE using (member_for_driver(driver_id, 'editor') AND member_for_scenario(scenario_id, 'editor'))
+driver_values_update UPDATE using (member_for_driver(driver_id, 'editor') AND member_for_scenario(scenario_id, 'editor')) check (member_for_driver(driver_id, 'editor') AND member_for_scenario(scenario_id, 'editor'))
+drivers_insert INSERT check member_for_plan(plan_id, 'editor')
+drivers_read SELECT using member_for_plan(plan_id, 'viewer')
+drivers_remove DELETE using member_for_plan(plan_id, 'editor')
+drivers_update UPDATE using member_for_plan(plan_id, 'editor') check member_for_plan(plan_id, 'editor')
+entities_owner_update UPDATE using is_entity_member(id, 'owner') check is_entity_member(id, 'owner')
+entities_read SELECT using is_entity_member(id, 'viewer')
+entity_members_read SELECT using is_entity_member(entity_id, 'viewer')
+line_map_insert INSERT check member_for_connection(connection_id, 'editor')
+line_map_read SELECT using member_for_connection(connection_id, 'viewer')
+line_map_remove DELETE using member_for_connection(connection_id, 'editor')
+line_map_update UPDATE using member_for_connection(connection_id, 'editor') check member_for_connection(connection_id, 'editor')
+packs_insert INSERT check member_for_version(version_id, 'editor')
+packs_read SELECT using member_for_version(version_id, 'viewer')
+packs_remove DELETE using member_for_version(version_id, 'editor')
+packs_update UPDATE using member_for_version(version_id, 'editor') check member_for_version(version_id, 'editor')
+plan_lines_insert INSERT check member_for_version(version_id, 'editor')
+plan_lines_read SELECT using member_for_version(version_id, 'viewer')
+plan_lines_remove DELETE using member_for_version(version_id, 'editor')
+plan_lines_update UPDATE using member_for_version(version_id, 'editor') check member_for_version(version_id, 'editor')
+plan_versions_insert INSERT check member_for_plan(plan_id, 'editor')
+plan_versions_read SELECT using member_for_plan(plan_id, 'viewer')
+plan_versions_remove DELETE using member_for_plan(plan_id, 'editor')
+plan_versions_update UPDATE using member_for_plan(plan_id, 'editor') check member_for_plan(plan_id, 'editor')
+plans_insert INSERT check is_entity_member(entity_id, 'editor')
+plans_read SELECT using is_entity_member(entity_id, 'viewer')
+plans_remove DELETE using is_entity_member(entity_id, 'editor')
+plans_update UPDATE using is_entity_member(entity_id, 'editor') check is_entity_member(entity_id, 'editor')
+scenarios_insert INSERT check member_for_version(version_id, 'editor')
+scenarios_read SELECT using member_for_version(version_id, 'viewer')
+scenarios_remove DELETE using member_for_version(version_id, 'editor')
+scenarios_update UPDATE using member_for_version(version_id, 'editor') check member_for_version(version_id, 'editor')
+vat_rules_read SELECT using ((verified_at IS NOT NULL) AND member_in_jurisdiction(jurisdiction))
+
+== Functions: security definer, volatility, full ACL (proacl), EXECUTE by role (run 3, current revision) ==
+fpa.add_member(uuid,text,text): definer=t volatile acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
+fpa.check_driver_value_plan(): definer=f volatile acl=postgres=X/postgres | anon=f authenticated=f service_role=f PUBLIC=f
+fpa.connection_entity(uuid): definer=t stable acl=postgres=X/postgres | anon=f authenticated=f service_role=f PUBLIC=f
+fpa.create_entity(text,text,text,smallint): definer=t volatile acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
+fpa.driver_entity(uuid): definer=t stable acl=postgres=X/postgres | anon=f authenticated=f service_role=f PUBLIC=f
+fpa.guard_locked_child(): definer=f volatile acl=postgres=X/postgres | anon=f authenticated=f service_role=f PUBLIC=f
+fpa.guard_locked_driver_value(): definer=f volatile acl=postgres=X/postgres | anon=f authenticated=f service_role=f PUBLIC=f
+fpa.guard_locked_version(): definer=f volatile acl=postgres=X/postgres | anon=f authenticated=f service_role=f PUBLIC=f
+fpa.is_entity_member(uuid,text): definer=t stable acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
+fpa.member_for_connection(uuid,text): definer=t stable acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
+fpa.member_for_driver(uuid,text): definer=t stable acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
+fpa.member_for_plan(uuid,text): definer=t stable acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
+fpa.member_for_scenario(uuid,text): definer=t stable acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
+fpa.member_for_version(uuid,text): definer=t stable acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
+fpa.member_in_jurisdiction(text): definer=t stable acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
+fpa.plan_entity(uuid): definer=t stable acl=postgres=X/postgres | anon=f authenticated=f service_role=f PUBLIC=f
+fpa.scenario_entity(uuid): definer=t stable acl=postgres=X/postgres | anon=f authenticated=f service_role=f PUBLIC=f
+fpa.set_member(uuid,text,text,boolean): definer=t volatile acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
+fpa.touch_updated_at(): definer=f volatile acl=postgres=X/postgres | anon=f authenticated=f service_role=f PUBLIC=f
+fpa.version_entity(uuid): definer=t stable acl=postgres=X/postgres | anon=f authenticated=f service_role=f PUBLIC=f
+
+== Verdict (current revision, from the list above) ==
+Executable by PUBLIC: none
+Executable by anon: none
+Executable by authenticated: add_member, create_entity, is_entity_member, member_for_connection, member_for_driver, member_for_plan, member_for_scenario, member_for_version, member_in_jurisdiction, set_member
+Executable by service_role: none
+Executable by no API role (internal): check_driver_value_plan, connection_entity, driver_entity, guard_locked_child, guard_locked_driver_value, guard_locked_version, plan_entity, scenario_entity, touch_updated_at, version_entity

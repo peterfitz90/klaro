@@ -1,0 +1,108 @@
+B2 TEST LOG: fpa schema (0001) and VAT draft (0002), 23 Nov 2026
+All runs went to the production Supabase project through the connector (plain SQL), each inside one
+transaction that ends by raising its result, so everything rolled back. Bundles are built by
+db/bundle.mjs and were sent with SQL comments removed (dollar-quoted bodies kept whole).
+Raised messages are copied uncut below. The full grants evidence is in db/tests/GRANTS_EVIDENCE.txt.
+
+0001 revisions:
+  b3f0f84da0b161e231004c42cf90e5599169501ee7b02a04d895b5e5341eef98  first revision (one lock trigger function)
+  c536684729073cd6551e607af14ec24d876a1d8e8535871e8a3fd785835ee8bb  CURRENT (lock trigger split into three; nothing else changed)
+0002_fpa_vat_rules_DRAFT.sql  c52477a986ea57562e31674b564082e45dcd8a9d185b7299dd6e0aff69366656
+
+------------------------------------------------------------------------------------------------
+Run 1. Syntax check of 0001 (first revision) alone
+  ERROR: P0001: syntax ok, rolled back: 14 tables, 40 policies, 18 functions
+
+Run 2. test_0001.sql, first attempt
+  ERROR: 22P02: malformed array literal: "entities: rename"
+  Cause: a test bug (text[] || 'literal' needs ::text). Fixed in the test file. Nothing ran past it.
+
+Run 3. test_0001.sql (first revision)
+  ERROR: P0001: 2 failure(s), 623 pass(es)
+  FAILED: membership helpers answer true/false for the caller only [got t,t,t,t,t,t,t,t,f]
+        | viewer < editor; an unknown role name answers false [got t,f,f]
+  Cause: a test bug. concat_ws prints booleans as t/f, so the expectations were written wrongly.
+  The answers themselves were correct. The connector also cut the evidence (about 2,000 characters
+  "truncated" in the middle); the report was made shorter so it fits uncut.
+
+Run 4. test_0001.sql (first revision)
+  ERROR: P0001: 0 failure(s), 625 pass(es)
+  (Followed by the full grants evidence: see db/tests/GRANTS_EVIDENCE.txt.)
+
+Run 5. test_down.sql (first revision)
+  ERROR: P0001: 0 failure(s), 5 pass(es)
+
+Run 6. test_0002_draft.sql (first revision)
+  ERROR: P0001: 0 failure(s), 5 pass(es)
+
+Run 7. dryrun_apply.sql (first revision)
+  ERROR: P0001: 0 failure(s), 10 pass(es)
+  plpgsql_check: 6 PL/pgSQL functions checked, 3 finding(s)
+  fpa.guard_locked_version [fpa.plan_lines]: error record "old" has no field "locked_at"
+  | fpa.guard_locked_version [fpa.driver_values]: error record "old" has no field "locked_at"
+  | fpa.guard_locked_version [fpa.plan_versions]: error record "v_row" has no field "scenario_id"
+  Cause: one trigger function served three table shapes. At run time each branch was guarded by
+  TG_TABLE_NAME, so it worked (run 4 tested every lock case), but the static check is right that
+  it is fragile. Fixed in 0001: guard_locked_version (plan_versions), guard_locked_child
+  (scenarios, plan_lines, packs) and guard_locked_driver_value (driver_values).
+
+Run 8. dryrun_apply.sql (CURRENT revision)
+  ERROR: P0001: 0 failure(s), 10 pass(es)
+  plpgsql_check: 8 PL/pgSQL functions checked, 0 finding(s)
+  Note: the text sent left out the bundle's first, top-level copy of db/apply_checks.sql (between the
+  schema_migrations insert and CREATE EXTENSION). The same checks ran as the dry run's first case
+  (pass 1 of 10), so the result is the same. The real apply file (db/out/apply_0001.sql) still has it.
+
+Run 9. test_0001.sql (CURRENT revision)
+  ERROR: P0001: 0 failure(s), 625 pass(es)
+  Note: sent with a shortened report block (the function list only, since only functions changed).
+  The 625 checks are the full test file. The function list is in GRANTS_EVIDENCE.txt.
+
+Run 10. A partial script sent by mistake (the first part of 0001, then an explicit ROLLBACK). It
+  returned no rows and tested nothing. It is recorded here for completeness. The read-only check below
+  confirms nothing persisted.
+
+Run 11. test_0002_draft.sql (CURRENT revision)
+  ERROR: P0001: 0 failure(s), 5 pass(es)
+
+Run 12. test_down.sql (CURRENT revision)
+  ERROR: P0001: 0 failure(s), 5 pass(es)
+
+------------------------------------------------------------------------------------------------
+Read-only check afterwards (BEGIN READ ONLY), 2026-11-23 11:08:19 UTC
+  supabase_migrations.schema_migrations rows: 102   (P0 baseline: 102, unchanged)
+  schemas fpa / fpa_test:                     0
+  fpa functions anywhere:                     0
+  plpgsql_check extension installed:          0     (installed only inside the rolled-back dry run)
+  booking.schema_migrations rows:             2     (Trinity, unchanged)
+  test trigger zz_test_fail:                  0
+
+------------------------------------------------------------------------------------------------
+What the 625 checks in test_0001 cover (db/tests/0001_fpa_schema.test.sql)
+  - Reads of entity A's rows in all 13 data tables, as each of 8 identities: owner, editor, viewer,
+    inactive member, signed-in non-member, owner of entity B, anon and service_role (104 checks).
+    schema_migrations is refused to all 8.
+  - A signed-in non-member sees zero rows in every table. Owner of A and owner of B each see exactly
+    their own entity's rows.
+  - 49 write statements (insert, update, remove on every table, plus parent-key moves, protected
+    columns, status changes), each tried as all 8 identities and undone (392 checks).
+  - Cross-entity: A against B's rows; a user who belongs to both cannot mix entities (composite keys,
+    same-plan trigger); deactivated and reactivated members.
+  - Helpers: lookups executable by no API role; membership helpers authenticated-only, boolean,
+    SECURITY DEFINER STABLE with a fixed search_path; nothing executable by PUBLIC; every callable
+    function refused to anon and service_role.
+  - create_entity: no user id refused; bad inputs refused; the cap of 10 owned entities with its
+    exact message; a failure in the last step undoes everything; the per-user advisory lock is held
+    until commit.
+  - Member functions: editors, viewers and other entities' owners refused; the last owner cannot step
+    down or deactivate.
+  - Locked versions refuse changes to lines, scenarios, values, packs, name and removal, and can be
+    unlocked.
+  - Constraints: duplicate actuals, entity/connection mismatch, non-month periods, every enumeration,
+    actual lines with an amount, overflow beyond numeric(14,2), unverified rules without a source,
+    a DRAFT filename in schema_migrations.
+  - Structure: row security on all 14 tables, an updated_at trigger on every table, no foreign key
+    out of fpa, no float or money columns.
+
+Local checks (klaro repo): npm run typecheck, npm run lint, npm test (7 files, 19 tests),
+npm run build, npm run check:bundle: all pass.
