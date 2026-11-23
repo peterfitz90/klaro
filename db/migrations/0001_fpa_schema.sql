@@ -119,7 +119,10 @@ CREATE TABLE fpa.plan_versions (
   plan_id             uuid NOT NULL REFERENCES fpa.plans(id) ON DELETE CASCADE,
   kind                text NOT NULL CHECK (kind IN ('budget', 'forecast')),
   name                text NOT NULL CHECK (length(btrim(name)) BETWEEN 1 AND 120),
-  locked_at           timestamptz,
+  locked_at           timestamptz,   -- set by the server when locked (editor or owner)
+  locked_by           text,          -- Clerk user id of whoever locked it last
+  unlocked_at         timestamptz,   -- when it was last unlocked (owner only)
+  unlocked_by         text,          -- Clerk user id of whoever unlocked it last
   based_on_version_id uuid,
   created_at          timestamptz NOT NULL DEFAULT now(),
   updated_at          timestamptz NOT NULL DEFAULT now(),
@@ -226,12 +229,31 @@ END $touch$;
 -- cannot see is left to row security, which refuses it anyway.
 -- One trigger function per row shape, so each can be checked statically (plpgsql_check).
 -- Parent keys are not updatable (column grants), so a row's version is the same before and after.
+-- On plan_versions: editors and owners may lock; only an owner may unlock (an API caller who is not
+-- an owner gets PT403). The server records who locked or unlocked and when; the audit columns are
+-- not writable by the API (column grants) and any value sent for them is replaced.
 CREATE FUNCTION fpa.guard_locked_version() RETURNS trigger LANGUAGE plpgsql SET search_path = fpa, pg_temp AS $$
+DECLARE v_sub text := auth.jwt() ->> 'sub';
 BEGIN
-  IF OLD.locked_at IS NOT NULL AND (TG_OP = 'DELETE' OR NEW.locked_at IS NOT NULL) THEN
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.locked_at IS NOT NULL THEN
+      RAISE EXCEPTION 'This version is locked. Unlock it first.' USING ERRCODE = 'PT423';
+    END IF;
+    RETURN OLD;
+  END IF;
+  NEW.locked_by := OLD.locked_by; NEW.unlocked_at := OLD.unlocked_at; NEW.unlocked_by := OLD.unlocked_by;
+  IF OLD.locked_at IS NULL AND NEW.locked_at IS NOT NULL THEN
+    NEW.locked_at := now();
+    NEW.locked_by := v_sub;
+  ELSIF OLD.locked_at IS NOT NULL AND NEW.locked_at IS NULL THEN
+    IF current_user = 'authenticated' AND NOT fpa.member_for_plan(OLD.plan_id, 'owner') THEN
+      RAISE EXCEPTION 'Only an owner can unlock a version.' USING ERRCODE = 'PT403';
+    END IF;
+    NEW.unlocked_at := now();
+    NEW.unlocked_by := v_sub;
+  ELSIF OLD.locked_at IS NOT NULL THEN
     RAISE EXCEPTION 'This version is locked. Unlock it first.' USING ERRCODE = 'PT423';
   END IF;
-  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
 END $$;
 CREATE FUNCTION fpa.guard_locked_child() RETURNS trigger LANGUAGE plpgsql SET search_path = fpa, pg_temp AS $$

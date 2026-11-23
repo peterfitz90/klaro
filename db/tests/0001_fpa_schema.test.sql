@@ -379,10 +379,13 @@ BEGIN
   PERFORM fpa_test.check((SELECT m.role = 'owner' AND m.is_active FROM fpa.entity_members m WHERE m.entity_id = v_ea AND m.clerk_user_id = 'user_ownerA'),
     'the refused owner changes left the owner unchanged');
 
-  -- ── 6. Locked versions are read-only ──
+  -- ── 6. Locked versions are read-only; editors lock, only owners unlock; both are recorded ──
   BEGIN
     PERFORM fpa_test.as_user('user_editorA');
-    UPDATE fpa.plan_versions SET locked_at = now() WHERE id = v_va;
+    UPDATE fpa.plan_versions SET locked_at = '2000-01-01' WHERE id = v_va;   -- the server sets its own time
+    PERFORM fpa_test.as_postgres();
+    v_t := (SELECT concat_ws(',', v.locked_by, v.locked_at = now(), v.unlocked_at IS NULL, v.unlocked_by IS NULL) FROM fpa.plan_versions v WHERE v.id = v_va);
+    PERFORM fpa_test.as_user('user_editorA');
     v_m := concat_ws(',',
       fpa_test.attempt(format('UPDATE fpa.plan_lines SET amount = 2 WHERE version_id = %L AND origin = ''manual''', v_va)),
       fpa_test.attempt(format('INSERT INTO fpa.plan_lines (version_id, scenario_id, plan_line, period, amount, origin) VALUES (%L, %L, ''x'', ''2027-05-01'', 1, ''manual'')', v_va, v_sa)),
@@ -391,14 +394,33 @@ BEGIN
       fpa_test.attempt(format('INSERT INTO fpa.packs (version_id, period) VALUES (%L, ''2027-05-01'')', v_va)),
       fpa_test.attempt(format('UPDATE fpa.plan_versions SET name = ''Sneaky'' WHERE id = %L', v_va)),
       fpa_test.attempt(format('%s FROM fpa.plan_versions WHERE id = %L', v_del, v_va)),
-      fpa_test.attempt(format('UPDATE fpa.plan_versions SET locked_at = NULL WHERE id = %L', v_va)));
+      fpa_test.attempt(format('UPDATE fpa.plan_versions SET locked_at = now() + interval ''1 day'' WHERE id = %L', v_va)),
+      fpa_test.attempt(format('UPDATE fpa.plan_versions SET locked_at = NULL WHERE id = %L', v_va)),
+      fpa_test.attempt(format('UPDATE fpa.plan_versions SET locked_by = ''user_someoneElse'' WHERE id = %L', v_va)),
+      fpa_test.attempt(format('UPDATE fpa.plan_versions SET unlocked_at = now() WHERE id = %L', v_va)));
+    PERFORM fpa_test.as_user('user_viewerA');
+    v_m := v_m || ',' || fpa_test.attempt(format('UPDATE fpa.plan_versions SET locked_at = NULL WHERE id = %L', v_va));
+    PERFORM fpa_test.as_user('user_ownerA');
+    UPDATE fpa.plan_versions SET locked_at = NULL WHERE id = v_va;
     PERFORM fpa_test.as_postgres();
+    v_got := (SELECT concat_ws(',', v.locked_at IS NULL, v.locked_by, v.unlocked_at = now(), v.unlocked_by) FROM fpa.plan_versions v WHERE v.id = v_va);
+    -- Unlocked, the version takes changes again, and a new lock records the new locker.
+    PERFORM fpa_test.as_user('user_editorA');
+    v_got := v_got || ';' || fpa_test.attempt(format('UPDATE fpa.plan_lines SET amount = 2 WHERE version_id = %L AND origin = ''manual''', v_va));
+    PERFORM fpa_test.as_user('user_ownerA');
+    UPDATE fpa.plan_versions SET locked_at = now() WHERE id = v_va;
+    PERFORM fpa_test.as_postgres();
+    v_got := v_got || ';' || (SELECT concat_ws(',', v.locked_by, v.unlocked_by) FROM fpa.plan_versions v WHERE v.id = v_va);
     RAISE EXCEPTION USING ERRCODE = 'P0099';
   EXCEPTION WHEN SQLSTATE 'P0099' THEN NULL;
   END;
   PERFORM fpa_test.as_postgres();
-  PERFORM fpa_test.check(v_m = 'PT423,PT423,PT423,PT423,PT423,PT423,PT423,ok:1',
-    'a locked version refuses changes to its lines, scenarios, values, packs, name and removal; it can be unlocked', v_m);
+  PERFORM fpa_test.check(v_t = 'user_editorA,t,t,t',
+    'locking: the server records who locked and sets the time itself (a sent time is ignored)', v_t);
+  PERFORM fpa_test.check(v_m = 'PT423,PT423,PT423,PT423,PT423,PT423,PT423,PT423,PT403,42501,42501,ok:0',
+    'a locked version refuses changes to its lines, scenarios, values, packs, name, lock time and removal; an editor cannot unlock (PT403); the audit columns are not writable; a viewer cannot unlock', v_m);
+  PERFORM fpa_test.check(v_got = 't,user_editorA,t,user_ownerA;ok:1;user_ownerA,user_ownerA',
+    'unlocking: an owner can unlock, the server records who and when, the lock history is kept, and a new lock records the new locker', v_got);
 
   -- ── 7. Constraints (as postgres; each attempt undone) ──
   FOR v_t, v_m IN SELECT * FROM (VALUES

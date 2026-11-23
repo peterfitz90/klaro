@@ -106,3 +106,14 @@ What the 625 checks in test_0001 cover (db/tests/0001_fpa_schema.test.sql)
 
 Local checks (klaro repo): npm run typecheck, npm run lint, npm test (7 files, 19 tests),
 npm run build, npm run check:bundle: all pass.
+
+------------------------------------------------------------------------------------------------
+After B2 approval, 23 Nov 2026 (0001 revision afacaac2..., with owner-only unlock and lock audit).
+All sent UNSTRIPPED and checked byte for byte against db/out/ (scripts/check-sent.mjs).
+Run S1  test_0001.sql        0 failure(s), 627 pass(es)  (grants evidence uncut; unchanged except the
+                             3 new plan_versions columns, which have no grants)
+Run V1  test_0002_draft.sql  0 failure(s), 5 pass(es)
+Run D1  dryrun_apply.sql     0 failure(s), 10 pass(es); plpgsql_check: 8 functions checked, 0 finding(s)
+Run R1  test_down.sql        NOT RUN: connector confirmation expired after 10 minutes
+Run R2  test_down.sql        NOT RUN: connector confirmation expired again
+Read-only check 14:31 UTC: Supabase migration history 102 rows; no fpa or fpa_test schema; plpgsql_check not installed.
