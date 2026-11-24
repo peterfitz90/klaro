@@ -167,8 +167,11 @@ BEGIN
     '04/4000/-9000.00,04/5000/3900.00', 'whole-month replace: January and March untouched, February replaced exactly (7000 and 8000 gone, 6000 changed), April added', v_got);
   PERFORM fpa_test.check((SELECT string_agg(coalesce(a.account_name, '-'), ',' ORDER BY a.account_code) FROM fpa.actuals_monthly a WHERE a.connection_id = v_ca AND a.period = '2025-02-01')
     = '-,Sales,-,-', 'account names: kept when sent, empty when not (a re-import replaces them too)');
+  -- (As the table owner: editor A rightly cannot see B's rows.)
+  PERFORM fpa_test.as_postgres();
   PERFORM fpa_test.check((SELECT string_agg(a.account_code || a.amount, ',') FROM fpa.actuals_monthly a WHERE a.connection_id = v_cb) = '4000-500.00',
     'entity B''s actuals are untouched by entity A''s imports');
+  PERFORM fpa_test.as_user('user_editorA');
   SELECT c.last_synced_at INTO v_sync FROM fpa.connections c WHERE c.id = v_ca;
   PERFORM fpa_test.check((SELECT c.status = 'active' AND c.actuals_through = '2025-04-01' AND c.last_synced_at IS NOT NULL FROM fpa.connections c WHERE c.id = v_ca),
     'the connection is active, with actuals through 2025-04 and a last-synced time');
