@@ -11,6 +11,8 @@
 - Figures are calculated at full precision and rounded to cents only for display.
 - While any account is unmapped, the strip says the profit figures are incomplete, and how many
   accounts are unmapped.
+- If the latest month of actuals is the current calendar month, Revenue (month) and Net profit
+  show **"month may be incomplete"** beside the figure (Peter, 24 Nov 2026).
 
 ## The four KPIs
 

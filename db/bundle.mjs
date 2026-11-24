@@ -13,6 +13,7 @@
 //   apply_0003.sql         BEGIN; 0003; record it in fpa.schema_migrations; db/apply_checks_0003.sql
 //                          (raises, rolling everything back, unless all hold); COMMIT;
 //   dryrun_apply_0003.sql  apply_0003.sql without its COMMIT, then the dry-run test (rolled back)
+//   timing_0003.sql        BEGIN; 0003; timings at the limits as authenticated with an 8s timeout (rolled back)
 // Migration files are embedded byte for byte (LF line endings, as stored in git), so each embedded copy
 // has the same SHA-256 as its checksum. *_DRAFT.sql files are never part of an apply.
 // Adapted from trinity-bookings db/bundle.mjs.
@@ -87,6 +88,11 @@ const out = {
   'test_0003.sql': `BEGIN;\n${body3}\n-- ===== tests/0003_phase1.test.sql =====\n${fill('./tests/0003_phase1.test.sql', '__ROUNDING_CASES__', cases)}\n`,
   'test_down_0003.sql': `BEGIN;\n${body3}\n${record3}\n-- ===== tests/0003_down.test.sql =====\n${downTest3}\n`,
   'apply_0003.sql': `${beforeCommit3}COMMIT;\n`,
+  'timing_0003.sql': `BEGIN;
+${body3}
+-- ===== tests/0003_timing.test.sql =====
+${read('./tests/0003_timing.test.sql').trim()}
+`,
   'dryrun_apply_0003.sql': `${beforeCommit3}-- ===== tests/apply_dryrun_0003.test.sql =====\n${fill('./tests/apply_dryrun_0003.test.sql', '__APPLY_CHECKS_0003__', checks3)}\n`,
 };
 
