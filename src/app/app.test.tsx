@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // The app's routes and fail-closed behaviour, with Clerk and the entity API replaced by fakes.
-import { cleanup, configure, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -40,8 +40,6 @@ Object.defineProperty(window, 'localStorage', {
   },
 });
 
-// One unexplained failure in about 25 runs, most likely a 1 s findBy timeout on a cold start; allow 5 s.
-configure({ asyncUtilTimeout: 5000 });
 vi.stubEnv('VITE_CLERK_PUBLISHABLE_KEY', 'pk_test_fake');
 const { App } = await import('./App');
 
