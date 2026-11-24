@@ -12,7 +12,7 @@ export default defineConfig(({ command }) => {
   return {
     plugins: [react()],
     envPrefix: 'VITE_',
-    define: { 'import.meta.env.VITE_CLERK_PUBLISHABLE_KEY': JSON.stringify('demo'), 'import.meta.env.VITE_SUPABASE_URL': JSON.stringify('http://demo.invalid'), 'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify('demo') },
+    define: { 'import.meta.env.VITE_CLERK_PUBLISHABLE_KEY': JSON.stringify('pk_test_ZGVtby5pbnZhbGlkJA'), 'import.meta.env.VITE_SUPABASE_URL': JSON.stringify('https://demo.invalid'), 'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify('demo') },
     resolve: { alias: { '@clerk/clerk-react': here('./src/demo/fakeClerk.tsx'), '@supabase/supabase-js': here('./src/demo/fakeSupabase.ts') } },
     server: { port: 5180, strictPort: true },
   };

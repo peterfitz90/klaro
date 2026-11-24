@@ -70,9 +70,23 @@
   .nav { display: flex; gap: 4px; overflow-x: auto; padding: 6px 8px; }
   .nav-label { display: none; }
   .nav-item { width: auto; white-space: nowrap; }
-  .sidebar-footer { display: none; }
+  /* Sign out stays reachable on a phone: a compact row under the task links. */
+  .sidebar-footer { flex-direction: row; align-items: center; justify-content: space-between; padding: 0 8px 6px; border-top: none; }
+  .sidebar-footer-btn { width: auto; }
+  .sidebar-user { padding: 0 4px; min-width: 0; }
   .kpi-grid, .grid-3 { grid-template-columns: repeat(2, 1fr); }
   .grid-2 { grid-template-columns: 1fr; }
   .content { padding: 16px; }
   .topbar { flex-wrap: wrap; padding: 8px 16px; }
+  /* The right-hand group wraps under the title and never pushes the page wider than the screen. */
+  .topbar-right { flex-wrap: wrap; width: 100%; min-width: 0; }
+  .entity-switch { flex: 1 1 auto; min-width: 0; }
+  .entity-chip { max-width: 100%; width: 100%; }
+  .entity-chip-name { min-width: 0; }
+  .menu { left: 0; right: 0; min-width: 0; }
+  .topbar-right .kbd { display: none; }
+}
+
+@media (max-width: 520px) {
+  .grid-3 { grid-template-columns: 1fr; }
 }
