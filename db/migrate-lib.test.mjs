@@ -13,7 +13,7 @@ describe('migration planning', () => {
     const local = [f('0002_fpa_vat_rules_DRAFT.sql'), f('0001_fpa_schema.sql')];
     const r = planMigrations(local, []);
     expect(r.pending.map(x => x.filename)).toEqual(['0001_fpa_schema.sql']);
-    expect(r.skippedDraft).toBe('0002_fpa_vat_rules_DRAFT.sql');
+    expect(r.skippedDrafts).toEqual(['0002_fpa_vat_rules_DRAFT.sql']);
     expect(isDraft('0002_fpa_vat_rules_DRAFT.sql')).toBe(true);
     expect(isDraft('0001_fpa_schema.sql')).toBe(false);
   });
@@ -28,8 +28,22 @@ describe('migration planning', () => {
     expect(() => planMigrations([], [f('0001_fpa_schema.sql')])).toThrow(/missing/);
   });
 
-  it('refuses to apply a file after a skipped draft, and odd file names', () => {
-    expect(() => planMigrations([f('0001_a.sql'), f('0002_rates_DRAFT.sql'), f('0003_b.sql')], [])).toThrow(/after the unapplied draft/);
+  it('applies a file after an unapplied draft (the draft is never applied)', () => {
+    const local = [f('0001_a.sql'), f('0002_rates_DRAFT.sql'), f('0003_b.sql')];
+    const r = planMigrations(local, [f('0001_a.sql')]);
+    expect(r.pending.map(x => x.filename)).toEqual(['0003_b.sql']);
+    expect(r.skippedDrafts).toEqual(['0002_rates_DRAFT.sql']);
+  });
+
+  it('refuses a pending file numbered below one already applied (a draft must be renumbered)', () => {
+    const local = [f('0001_a.sql'), f('0002_rates.sql'), f('0003_b.sql')];
+    expect(() => planMigrations(local, [f('0001_a.sql'), f('0003_b.sql')])).toThrow(/numbered below a migration already applied; renumber it after 0003/);
+    expect(planMigrations([...local, f('0004_rates.sql')].filter(x => x.filename !== '0002_rates.sql'), [f('0001_a.sql'), f('0003_b.sql')]).pending.map(x => x.filename))
+      .toEqual(['0004_rates.sql']);
+  });
+
+  it('refuses two files with one number, and odd file names', () => {
+    expect(() => planMigrations([f('0003_a.sql'), f('0003_b_DRAFT.sql')], [])).toThrow(/share the number 0003/);
     expect(() => planMigrations([f('notes.sql')], [])).toThrow(/Not a migration/);
   });
 });
