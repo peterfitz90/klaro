@@ -15,6 +15,10 @@
 --                                 replaces whole months for one connection, in one transaction.
 --     set_line_map, account_map, unmapped_accounts, variance, create_budget_from_actuals:
 --                                 SECURITY INVOKER, so row security and the lock triggers apply.
+--     my_entity_ids               SECURITY DEFINER helper: the caller's own entities at a minimum role.
+--   Read policies on actuals_monthly and line_map use my_entity_ids once per query instead of a
+--   membership check per row (same rule: active member, viewer or above). Measured need: at 44,000
+--   actual rows the per-row checks took over 8 seconds (docs/reports/P1-A-timing.md).
 -- Sign convention: actuals and budget amounts are stored trial-balance style (debits positive,
 -- credits negative). plan_line_defs.display_sign turns them into screen figures (revenue positive).
 -- Rounding (budget from actuals): full precision, round half away from zero to cents; the last month
@@ -87,6 +91,23 @@ ALTER TABLE fpa.plan_lines ADD CONSTRAINT plan_lines_origin_check CHECK (origin 
 
 CREATE TRIGGER plan_line_defs_updated_at BEFORE UPDATE ON fpa.plan_line_defs FOR EACH ROW EXECUTE FUNCTION fpa.touch_updated_at();
 CREATE TRIGGER sync_runs_updated_at BEFORE UPDATE ON fpa.sync_runs FOR EACH ROW EXECUTE FUNCTION fpa.touch_updated_at();
+
+-- ── Faster read policies (same access rule) ───────────────────────────────────────────────
+-- The caller's own entities where they are an active member with at least p_min_role. Only ever about
+-- the caller (auth.jwt()->>'sub'). Used inside ARRAY(SELECT ...) in the policies below, so it runs once
+-- per query rather than once per row.
+CREATE FUNCTION fpa.my_entity_ids(p_min_role text DEFAULT 'viewer') RETURNS SETOF uuid
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = fpa, pg_temp AS $$
+  SELECT m.entity_id FROM fpa.entity_members m
+   WHERE m.clerk_user_id = (SELECT auth.jwt() ->> 'sub')
+     AND m.is_active
+     AND CASE m.role WHEN 'owner' THEN 3 WHEN 'editor' THEN 2 WHEN 'viewer' THEN 1 END
+         >= CASE p_min_role WHEN 'owner' THEN 3 WHEN 'editor' THEN 2 WHEN 'viewer' THEN 1 END;
+$$;
+ALTER POLICY actuals_monthly_read ON fpa.actuals_monthly
+  USING (entity_id = ANY (ARRAY(SELECT fpa.my_entity_ids('viewer'))));
+ALTER POLICY line_map_read ON fpa.line_map
+  USING (connection_id IN (SELECT c.id FROM fpa.connections c WHERE c.entity_id = ANY (ARRAY(SELECT fpa.my_entity_ids('viewer')))));
 
 -- ── import_actuals ───────────────────────────────────────────────────────────────────────────
 -- Imports monthly actuals for one CSV connection. p_rows is a JSON array of
@@ -293,37 +314,46 @@ BEGIN
     RAISE EXCEPTION 'That version was not found for this entity.' USING ERRCODE = 'PT404';
   END IF;
 
+  -- Actuals and budget are each read once and summed per line and month; the grid is built from those
+  -- small sums with joins.
   RETURN QUERY
   WITH mon AS (
     SELECT gs::date AS p FROM generate_series(p_from::timestamp, p_to::timestamp, interval '1 month') AS gs),
-  act AS (
+  act AS MATERIALIZED (
     SELECT coalesce(m.plan_line, 'unmapped') AS k, a.period AS p, sum(a.amount) AS amt
       FROM fpa.actuals_monthly a
       LEFT JOIN fpa.line_map m ON m.connection_id = a.connection_id AND m.account_code = a.account_code
      WHERE a.entity_id = p_entity_id AND a.period BETWEEN p_from AND p_to
      GROUP BY 1, 2),
-  act_months AS (SELECT DISTINCT x.p FROM act x),
-  bud AS (
+  bud AS MATERIALIZED (
     SELECT l.plan_line AS k, l.period AS p, sum(l.amount) AS amt
       FROM fpa.plan_lines l JOIN fpa.scenarios s ON s.id = l.scenario_id AND s.is_base
      WHERE l.version_id = p_version_id AND l.period BETWEEN p_from AND p_to AND l.amount IS NOT NULL
      GROUP BY 1, 2),
+  act_months AS (SELECT DISTINCT x.p FROM act x),
   bud_months AS (SELECT DISTINCT x.p FROM bud x),
+  -- Calculated lines: the income and cost lines above them (lower sort_order), per month.
+  act_calc AS (
+    SELECT d.key AS k, x.p, sum(x.amt) AS amt
+      FROM fpa.plan_line_defs d JOIN act x ON true JOIN fpa.plan_line_defs d2 ON d2.key = x.k
+     WHERE d.kind = 'calculated' AND d2.kind IN ('income', 'cost') AND d2.sort_order < d.sort_order
+     GROUP BY 1, 2),
+  bud_calc AS (
+    SELECT d.key AS k, x.p, sum(x.amt) AS amt
+      FROM fpa.plan_line_defs d JOIN bud x ON true JOIN fpa.plan_line_defs d2 ON d2.key = x.k
+     WHERE d.kind = 'calculated' AND d2.kind IN ('income', 'cost') AND d2.sort_order < d.sort_order
+     GROUP BY 1, 2),
   grid AS (
     SELECT d.key AS k, d.label, d.kind, d.sort_order, d.display_sign, mo.p,
-           CASE WHEN mo.p IN (SELECT am.p FROM act_months am) THEN
-             CASE WHEN d.kind = 'calculated'
-                  THEN (SELECT coalesce(sum(x.amt), 0) FROM act x JOIN fpa.plan_line_defs d2 ON d2.key = x.k
-                         WHERE x.p = mo.p AND d2.kind IN ('income', 'cost') AND d2.sort_order < d.sort_order)
-                  ELSE (SELECT coalesce(sum(x.amt), 0) FROM act x WHERE x.k = d.key AND x.p = mo.p) END
-           END AS a_tb,
-           CASE WHEN mo.p IN (SELECT bm.p FROM bud_months bm) THEN
-             CASE WHEN d.kind = 'calculated'
-                  THEN (SELECT coalesce(sum(x.amt), 0) FROM bud x JOIN fpa.plan_line_defs d2 ON d2.key = x.k
-                         WHERE x.p = mo.p AND d2.kind IN ('income', 'cost') AND d2.sort_order < d.sort_order)
-                  ELSE (SELECT coalesce(sum(x.amt), 0) FROM bud x WHERE x.k = d.key AND x.p = mo.p) END
-           END AS b_tb
+           CASE WHEN am.p IS NOT NULL THEN coalesce(CASE WHEN d.kind = 'calculated' THEN ac.amt ELSE ax.amt END, 0) END AS a_tb,
+           CASE WHEN bm.p IS NOT NULL THEN coalesce(CASE WHEN d.kind = 'calculated' THEN bc.amt ELSE bx.amt END, 0) END AS b_tb
       FROM fpa.plan_line_defs d CROSS JOIN mon mo
+      LEFT JOIN act_months am ON am.p = mo.p
+      LEFT JOIN bud_months bm ON bm.p = mo.p
+      LEFT JOIN act ax ON ax.k = d.key AND ax.p = mo.p
+      LEFT JOIN act_calc ac ON ac.k = d.key AND ac.p = mo.p
+      LEFT JOIN bud bx ON bx.k = d.key AND bx.p = mo.p
+      LEFT JOIN bud_calc bc ON bc.k = d.key AND bc.p = mo.p
      WHERE d.kind <> 'excluded')
   SELECT g.k, g.label, g.kind, g.sort_order, g.p,
          g.display_sign * g.a_tb,
@@ -417,13 +447,17 @@ BEGIN
   WITH win AS (
     SELECT gs::date AS p, (row_number() OVER (ORDER BY gs) - 1)::integer AS k
       FROM generate_series(p_actuals_from::timestamp, (p_actuals_from + interval '11 months')::timestamp, interval '1 month') AS gs),
+  sums AS MATERIALIZED (   -- the window's mapped actuals, read once, summed per line and month
+    SELECT m.plan_line AS line, a.period AS p, sum(a.amount) AS amt
+      FROM fpa.actuals_monthly a
+      JOIN fpa.line_map m ON m.connection_id = a.connection_id AND m.account_code = a.account_code
+     WHERE a.entity_id = v_entity AND a.period >= p_actuals_from AND a.period < (p_actuals_from + interval '12 months')::date
+     GROUP BY 1, 2),
   exact AS (
     SELECT d.key AS line, w.k,
-           coalesce((SELECT sum(a.amount) FROM fpa.actuals_monthly a
-                       JOIN fpa.line_map m ON m.connection_id = a.connection_id AND m.account_code = a.account_code
-                      WHERE a.entity_id = v_entity AND a.period = w.p AND m.plan_line = d.key), 0)
-             * (1 + coalesce(btrim(v_uplifts ->> d.key)::numeric, 0) / 100) AS amt
+           coalesce(s.amt, 0) * (1 + coalesce(btrim(v_uplifts ->> d.key)::numeric, 0) / 100) AS amt
       FROM fpa.plan_line_defs d CROSS JOIN win w
+      LEFT JOIN sums s ON s.line = d.key AND s.p = w.p
      WHERE d.budgetable),
   rounded AS (
     SELECT e.line, e.k,
@@ -454,3 +488,5 @@ GRANT EXECUTE ON FUNCTION fpa.import_actuals(uuid, uuid, jsonb, text), fpa.set_l
                           fpa.unmapped_accounts(uuid), fpa.variance(uuid, uuid, date, date),
                           fpa.create_budget_from_actuals(uuid, uuid, text, date, date, jsonb)
   TO authenticated;
+REVOKE ALL ON FUNCTION fpa.my_entity_ids(text) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION fpa.my_entity_ids(text) TO authenticated;

@@ -2,8 +2,8 @@
 -- runs it, and db/bundle.mjs only embeds it in its rolled-back test (db/out/test_down_0003.sql).
 --
 -- It returns the fpa schema to exactly its state after 0001 (db/apply_checks.sql passes again):
--- removes the six Phase 1 functions, fpa.sync_runs, fpa.plan_line_defs, actuals_monthly.account_name,
--- the plan-line foreign keys and their columns, 'from_actuals' as a plan_lines origin, and the 0003
+-- restores the Phase 0 read policies on actuals_monthly and line_map; removes the seven Phase 1
+-- functions, fpa.sync_runs, fpa.plan_line_defs, actuals_monthly.account_name, the plan-line foreign keys and their columns, 'from_actuals' as a plan_lines origin, and the 0003
 -- row in fpa.schema_migrations. Actuals, line maps and plan lines themselves stay. Run it inside one
 -- transaction. It touches nothing outside the fpa schema.
 --
@@ -37,6 +37,10 @@ BEGIN
   EXECUTE 'DROP FUNCTION fpa.set_line_map(uuid, jsonb)';
   EXECUTE 'DROP FUNCTION fpa.import_actuals(uuid, uuid, jsonb, text)';
   EXECUTE 'DROP TABLE fpa.sync_runs';
+  -- The Phase 0 read policies, exactly as 0001 created them.
+  EXECUTE 'ALTER POLICY actuals_monthly_read ON fpa.actuals_monthly USING (fpa.is_entity_member(entity_id, ''viewer''))';
+  EXECUTE 'ALTER POLICY line_map_read ON fpa.line_map USING (fpa.member_for_connection(connection_id, ''viewer''))';
+  EXECUTE 'DROP FUNCTION fpa.my_entity_ids(text)';
   EXECUTE 'ALTER TABLE fpa.plan_lines DROP CONSTRAINT plan_lines_origin_check';
   EXECUTE 'ALTER TABLE fpa.plan_lines ADD CONSTRAINT plan_lines_origin_check CHECK (origin IN (''actual'', ''driver'', ''manual''))';
   EXECUTE 'ALTER TABLE fpa.plan_lines DROP CONSTRAINT plan_lines_plan_line_def';

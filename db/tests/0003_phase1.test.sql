@@ -65,6 +65,93 @@ CREATE FUNCTION fpa_test.cell(p_entity uuid, p_version uuid, p_key text, p_month
   SELECT format('%s|%s|%s|%s|%s', coalesce(v.actual::text, 'null'), coalesce(v.budget::text, 'null'), coalesce(v.variance::text, 'null'),
                 coalesce(round(v.variance_pct, 4)::text, 'null'), coalesce(v.favourable::text, 'null'))
     FROM fpa.variance(p_entity, p_version, DATE '2025-01-01', DATE '2025-05-01') v WHERE v.line_key = p_key AND v.month = p_month; $$;
+-- Test-only copies of variance and create_budget_from_actuals as first written (per-row membership
+-- checks, per-cell subqueries), to show the faster versions in 0003 give identical results.
+CREATE FUNCTION fpa_test.old_variance(p_entity_id uuid, p_version_id uuid, p_from date, p_to date)
+RETURNS TABLE (line_key text, line_label text, line_kind text, line_order smallint, month date,
+               actual numeric, budget numeric, variance numeric, variance_pct numeric, favourable boolean)
+LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = fpa, pg_temp AS $$
+BEGIN
+  IF p_from IS NULL OR p_to IS NULL OR p_from <> date_trunc('month', p_from)::date OR p_to <> date_trunc('month', p_to)::date THEN
+    RAISE EXCEPTION 'From and to must be the first days of months.' USING ERRCODE = 'PT400';
+  END IF;
+  IF p_to < p_from OR p_to > (p_from + interval '35 months')::date THEN
+    RAISE EXCEPTION 'Choose a range of 1 to 36 months.' USING ERRCODE = 'PT400';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM fpa.entities e WHERE e.id = p_entity_id) THEN
+    RAISE EXCEPTION 'That entity was not found.' USING ERRCODE = 'PT404';
+  END IF;
+  IF p_version_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM fpa.plan_versions v JOIN fpa.plans p ON p.id = v.plan_id
+                                               WHERE v.id = p_version_id AND p.entity_id = p_entity_id) THEN
+    RAISE EXCEPTION 'That version was not found for this entity.' USING ERRCODE = 'PT404';
+  END IF;
+  RETURN QUERY
+  WITH mon AS (
+    SELECT gs::date AS p FROM generate_series(p_from::timestamp, p_to::timestamp, interval '1 month') AS gs),
+  act AS (
+    SELECT coalesce(m.plan_line, 'unmapped') AS k, a.period AS p, sum(a.amount) AS amt
+      FROM fpa.actuals_monthly a
+      LEFT JOIN fpa.line_map m ON m.connection_id = a.connection_id AND m.account_code = a.account_code
+     WHERE a.entity_id = p_entity_id AND a.period BETWEEN p_from AND p_to
+     GROUP BY 1, 2),
+  act_months AS (SELECT DISTINCT x.p FROM act x),
+  bud AS (
+    SELECT l.plan_line AS k, l.period AS p, sum(l.amount) AS amt
+      FROM fpa.plan_lines l JOIN fpa.scenarios s ON s.id = l.scenario_id AND s.is_base
+     WHERE l.version_id = p_version_id AND l.period BETWEEN p_from AND p_to AND l.amount IS NOT NULL
+     GROUP BY 1, 2),
+  bud_months AS (SELECT DISTINCT x.p FROM bud x),
+  grid AS (
+    SELECT d.key AS k, d.label, d.kind, d.sort_order, d.display_sign, mo.p,
+           CASE WHEN mo.p IN (SELECT am.p FROM act_months am) THEN
+             CASE WHEN d.kind = 'calculated'
+                  THEN (SELECT coalesce(sum(x.amt), 0) FROM act x JOIN fpa.plan_line_defs d2 ON d2.key = x.k
+                         WHERE x.p = mo.p AND d2.kind IN ('income', 'cost') AND d2.sort_order < d.sort_order)
+                  ELSE (SELECT coalesce(sum(x.amt), 0) FROM act x WHERE x.k = d.key AND x.p = mo.p) END
+           END AS a_tb,
+           CASE WHEN mo.p IN (SELECT bm.p FROM bud_months bm) THEN
+             CASE WHEN d.kind = 'calculated'
+                  THEN (SELECT coalesce(sum(x.amt), 0) FROM bud x JOIN fpa.plan_line_defs d2 ON d2.key = x.k
+                         WHERE x.p = mo.p AND d2.kind IN ('income', 'cost') AND d2.sort_order < d.sort_order)
+                  ELSE (SELECT coalesce(sum(x.amt), 0) FROM bud x WHERE x.k = d.key AND x.p = mo.p) END
+           END AS b_tb
+      FROM fpa.plan_line_defs d CROSS JOIN mon mo
+     WHERE d.kind <> 'excluded')
+  SELECT g.k, g.label, g.kind, g.sort_order, g.p,
+         g.display_sign * g.a_tb,
+         g.display_sign * g.b_tb,
+         g.display_sign * (g.a_tb - g.b_tb),
+         CASE WHEN g.b_tb <> 0 THEN g.display_sign * (g.a_tb - g.b_tb) / abs(g.b_tb) * 100 END,
+         CASE WHEN g.kind IN ('income', 'calculated') THEN g.display_sign * (g.a_tb - g.b_tb) >= 0
+              WHEN g.kind = 'cost' THEN g.display_sign * (g.a_tb - g.b_tb) <= 0 END
+    FROM grid g
+   ORDER BY g.sort_order, g.p;
+END $$;
+-- (Only the line-writing part of the old budget function: the checks before it are unchanged in 0003.)
+CREATE FUNCTION fpa_test.old_budget_lines(p_version uuid, p_scenario uuid, p_entity uuid, p_actuals_from date, p_budget_from date, p_uplifts jsonb)
+RETURNS void LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = fpa, pg_temp AS $$
+BEGIN
+  INSERT INTO fpa.plan_lines (version_id, scenario_id, plan_line, period, amount, origin)
+  WITH win AS (
+    SELECT gs::date AS p, (row_number() OVER (ORDER BY gs) - 1)::integer AS k
+      FROM generate_series(p_actuals_from::timestamp, (p_actuals_from + interval '11 months')::timestamp, interval '1 month') AS gs),
+  exact AS (
+    SELECT d.key AS line, w.k,
+           coalesce((SELECT sum(a.amount) FROM fpa.actuals_monthly a
+                       JOIN fpa.line_map m ON m.connection_id = a.connection_id AND m.account_code = a.account_code
+                      WHERE a.entity_id = p_entity AND a.period = w.p AND m.plan_line = d.key), 0)
+             * (1 + coalesce(btrim(p_uplifts ->> d.key)::numeric, 0) / 100) AS amt
+      FROM fpa.plan_line_defs d CROSS JOIN win w
+     WHERE d.budgetable),
+  rounded AS (
+    SELECT e.line, e.k,
+           CASE WHEN e.k < 11 THEN round(e.amt, 2)
+                ELSE round(sum(e.amt) OVER (PARTITION BY e.line), 2)
+                     - (sum(round(e.amt, 2)) OVER (PARTITION BY e.line) - round(e.amt, 2)) END AS amt
+      FROM exact e)
+  SELECT p_version, p_scenario, r.line, (p_budget_from + make_interval(months => r.k))::date, r.amt, 'from_actuals'
+    FROM rounded r ORDER BY r.line, r.k;
+END $$;
 GRANT USAGE ON SCHEMA fpa_test TO anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA fpa_test TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA fpa_test TO anon, authenticated, service_role;
@@ -80,6 +167,8 @@ DECLARE
   v_va uuid; v_sa uuid; v_sa2 uuid; v_vb uuid; v_vf uuid; v_vn uuid;
   v_rows jsonb; v_res jsonb; v_got text; v_exp text; v_n bigint; v_n2 bigint; v_t text; v_sum numeric; v_sync timestamptz;
   v_case jsonb; i int; j int; v_sql text; v_file1 jsonb; v_file2 jsonb;
+  v_ec uuid; v_cc uuid; v_pc uuid; v_vnew uuid; v_vold uuid; v_sold uuid; v_new_sig text[] := '{}'; v_old_sig text[] := '{}';
+  v_all constant text[] := ARRAY['user_ownerA', 'user_editorA', 'user_viewerA', 'user_inactiveA', 'user_outsider', 'user_ownerB', 'anon', 'service_role', 'authenticated'];
 BEGIN
   -- ── Fixtures ──
   PERFORM fpa_test.as_user('user_ownerA');
@@ -493,6 +582,94 @@ BEGIN
                                         AND a.atttypid IN ('real'::regtype, 'double precision'::regtype, 'money'::regtype)), 'no float or money columns');
   PERFORM fpa_test.check(has_schema_privilege('authenticated', 'fpa', 'USAGE') AND NOT has_schema_privilege('anon', 'fpa', 'USAGE')
     AND NOT has_schema_privilege('service_role', 'fpa', 'USAGE'), 'schema usage: authenticated only (unchanged)');
+
+  -- ── 11. The faster read rules: helper, and old-versus-new equivalence for every identity ──
+  -- my_entity_ids returns only the caller's own active entities at the role asked for.
+  FOR i IN 1 .. 9 LOOP
+    PERFORM fpa_test.as_user(v_all[i]);
+    v_got := fpa_test.val('SELECT string_agg(x::text, '','' ORDER BY x::text) FROM fpa.my_entity_ids(''viewer'') x');
+    v_exp := (ARRAY[v_ea::text, v_ea::text, v_ea::text, 'null', 'null', v_eb::text, '42501', '42501', 'null'])[i];
+    PERFORM fpa_test.check(v_got = v_exp, 'my_entity_ids(viewer) as ' || v_all[i] || ' is only their own active entities', v_got);
+  END LOOP;
+  PERFORM fpa_test.as_user('user_viewerA');
+  PERFORM fpa_test.check(fpa_test.val('SELECT count(*)::text FROM fpa.my_entity_ids(''editor'')') = '0', 'my_entity_ids(editor) as a viewer: none');
+  PERFORM fpa_test.as_user('user_editorA');
+  PERFORM fpa_test.check(fpa_test.val('SELECT count(*)::text FROM fpa.my_entity_ids(''owner'')') = '0'
+    AND fpa_test.val('SELECT count(*)::text FROM fpa.my_entity_ids(''editor'')') = '1', 'my_entity_ids(owner) as an editor: none; (editor): one');
+  PERFORM fpa_test.as_postgres();
+  PERFORM fpa_test.check((SELECT p.provolatile = 's' AND p.prosecdef AND p.proconfig::text LIKE '%search_path=fpa, pg_temp%'
+      AND has_function_privilege('authenticated', p.oid, 'EXECUTE') AND NOT has_function_privilege('anon', p.oid, 'EXECUTE')
+      AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE')
+      AND NOT EXISTS (SELECT 1 FROM aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0)
+      FROM pg_proc p WHERE p.oid = 'fpa.my_entity_ids(text)'::regprocedure),
+    'my_entity_ids: STABLE, SECURITY DEFINER, fixed search_path, executable by authenticated only (not anon, service_role or PUBLIC)');
+  PERFORM fpa_test.check((SELECT count(*) FROM pg_policies p WHERE p.schemaname = 'fpa') = 42
+    AND (SELECT bool_and(p.roles = '{authenticated}'::name[]) FROM pg_policies p WHERE p.schemaname = 'fpa'), 'still 42 policies, all TO authenticated only');
+
+  -- Every identity sees exactly the same rows of actuals_monthly and line_map under the 0003 rules as
+  -- under the Phase 0 rules (row count and a hash of the sorted row ids).
+  FOR i IN 1 .. 9 LOOP
+    PERFORM fpa_test.as_user(v_all[i]);
+    v_new_sig := v_new_sig || (fpa_test.val('SELECT count(*) || '':'' || md5(coalesce(string_agg(a.id::text, '','' ORDER BY a.id::text), '''')) FROM fpa.actuals_monthly a')
+                               || ' / ' || fpa_test.val('SELECT count(*) || '':'' || md5(coalesce(string_agg(m.id::text, '','' ORDER BY m.id::text), '''')) FROM fpa.line_map m'));
+  END LOOP;
+  PERFORM fpa_test.as_postgres();
+  EXECUTE 'ALTER POLICY actuals_monthly_read ON fpa.actuals_monthly USING (fpa.is_entity_member(entity_id, ''viewer''))';
+  EXECUTE 'ALTER POLICY line_map_read ON fpa.line_map USING (fpa.member_for_connection(connection_id, ''viewer''))';
+  FOR i IN 1 .. 9 LOOP
+    PERFORM fpa_test.as_user(v_all[i]);
+    v_old_sig := v_old_sig || (fpa_test.val('SELECT count(*) || '':'' || md5(coalesce(string_agg(a.id::text, '','' ORDER BY a.id::text), '''')) FROM fpa.actuals_monthly a')
+                               || ' / ' || fpa_test.val('SELECT count(*) || '':'' || md5(coalesce(string_agg(m.id::text, '','' ORDER BY m.id::text), '''')) FROM fpa.line_map m'));
+  END LOOP;
+  PERFORM fpa_test.as_postgres();
+  EXECUTE 'ALTER POLICY actuals_monthly_read ON fpa.actuals_monthly USING (entity_id = ANY (ARRAY(SELECT fpa.my_entity_ids(''viewer''))))';
+  EXECUTE 'ALTER POLICY line_map_read ON fpa.line_map USING (connection_id IN (SELECT c.id FROM fpa.connections c WHERE c.entity_id = ANY (ARRAY(SELECT fpa.my_entity_ids(''viewer'')))))';
+  FOR i IN 1 .. 9 LOOP
+    PERFORM fpa_test.check(v_new_sig[i] = v_old_sig[i], 'same rows under old and new read rules as ' || v_all[i], v_all[i] || ' new ' || v_new_sig[i] || ' old ' || v_old_sig[i]);
+  END LOOP;
+  PERFORM fpa_test.check(split_part(v_new_sig[1], ':', 1)::int > 100 AND split_part(v_new_sig[6], ':', 1)::int > 0
+    AND split_part(v_new_sig[5], ':', 1) = '0' AND v_new_sig[7] = '42501 / 42501', 'the comparison is not trivial (owner A sees many rows, B some, the non-member none, anon is refused)',
+    array_to_string(v_new_sig, ' | '));
+
+  -- ── 12. Old and new functions side by side on a mid-size fixture (200 accounts x 12 months) ──
+  PERFORM fpa_test.as_user('user_ownerA');
+  v_ec := fpa.create_entity('Charlie Test Ltd', 'IE', 'EUR', 1::smallint);
+  INSERT INTO fpa.connections (entity_id, source_type) VALUES (v_ec, 'csv') RETURNING id INTO v_cc;
+  SELECT p.id INTO v_pc FROM fpa.plans p WHERE p.entity_id = v_ec;
+  SELECT jsonb_agg(jsonb_build_object('account_code', 'C' || lpad(a::text, 3, '0'), 'month', to_char(DATE '2024-01-01' + make_interval(months => m), 'YYYY-MM-DD'),
+                   'amount', to_char(((a * 7919 + m * 104729) % 200000 - 100000) / 100.0, 'FM999999990.00'))) INTO v_rows
+    FROM generate_series(1, 200) a, generate_series(0, 11) m;
+  PERFORM fpa.import_actuals(v_ec, v_cc, v_rows, 'mid-size.csv');
+  -- 190 accounts mapped over every mappable line (Excluded included); 10 left unmapped for now.
+  SELECT jsonb_agg(jsonb_build_object('account_code', 'C' || lpad(a::text, 3, '0'),
+                   'plan_line', (ARRAY['revenue','cost_of_sales','payroll','marketing','premises','other_operating','interest','tax','excluded'])[1 + a % 9])) INTO v_rows
+    FROM generate_series(1, 190) a;
+  PERFORM fpa.set_line_map(v_cc, v_rows);
+  PERFORM fpa_test.check((SELECT count(*) FROM fpa.variance(v_ec, NULL, '2023-07-01', '2025-06-01')) = 288
+    AND NOT EXISTS ((SELECT * FROM fpa.variance(v_ec, NULL, '2023-07-01', '2025-06-01') EXCEPT SELECT * FROM fpa_test.old_variance(v_ec, NULL, '2023-07-01', '2025-06-01'))
+                    UNION ALL (SELECT * FROM fpa_test.old_variance(v_ec, NULL, '2023-07-01', '2025-06-01') EXCEPT SELECT * FROM fpa.variance(v_ec, NULL, '2023-07-01', '2025-06-01'))),
+    'variance, new and old, identical on 200 accounts with 10 unmapped (24 months incl. empty ones, no budget)');
+  SELECT jsonb_agg(jsonb_build_object('account_code', 'C' || lpad(a::text, 3, '0'), 'plan_line', 'other_operating')) INTO v_rows FROM generate_series(191, 200) a;
+  PERFORM fpa.set_line_map(v_cc, v_rows);
+  v_vnew := fpa.create_budget_from_actuals(v_pc, NULL, 'New way', '2024-01-01', '2025-01-01',
+                                           '{"revenue": 7.25, "cost_of_sales": "-3.33", "payroll": 2.5, "tax": 33.33, "interest": -100}'::jsonb);
+  INSERT INTO fpa.plan_versions (plan_id, kind, name) VALUES (v_pc, 'budget', 'Old way') RETURNING id INTO v_vold;
+  INSERT INTO fpa.scenarios (version_id, name, is_base) VALUES (v_vold, 'Base', true) RETURNING id INTO v_sold;
+  PERFORM fpa_test.old_budget_lines(v_vold, v_sold, v_ec, '2024-01-01', '2025-01-01',
+                                    '{"revenue": 7.25, "cost_of_sales": "-3.33", "payroll": 2.5, "tax": 33.33, "interest": -100}'::jsonb);
+  PERFORM fpa_test.check((SELECT count(*) FROM fpa.plan_lines l WHERE l.version_id = v_vnew) = 96
+    AND NOT EXISTS ((SELECT l.plan_line, l.period, l.amount, l.origin FROM fpa.plan_lines l WHERE l.version_id = v_vnew
+                     EXCEPT SELECT l.plan_line, l.period, l.amount, l.origin FROM fpa.plan_lines l WHERE l.version_id = v_vold)
+                    UNION ALL (SELECT l.plan_line, l.period, l.amount, l.origin FROM fpa.plan_lines l WHERE l.version_id = v_vold
+                     EXCEPT SELECT l.plan_line, l.period, l.amount, l.origin FROM fpa.plan_lines l WHERE l.version_id = v_vnew)),
+    'budget from actuals, new and old, identical: 96 lines with the same amounts (200 accounts, five uplifts)');
+  PERFORM fpa_test.check(NOT EXISTS ((SELECT * FROM fpa.variance(v_ec, v_vnew, '2024-01-01', '2025-12-01') EXCEPT SELECT * FROM fpa_test.old_variance(v_ec, v_vnew, '2024-01-01', '2025-12-01'))
+                    UNION ALL (SELECT * FROM fpa_test.old_variance(v_ec, v_vnew, '2024-01-01', '2025-12-01') EXCEPT SELECT * FROM fpa.variance(v_ec, v_vnew, '2024-01-01', '2025-12-01')))
+    AND (SELECT count(*) FROM fpa.variance(v_ec, v_vnew, '2024-01-01', '2025-12-01') WHERE budget IS NOT NULL AND actual IS NULL) = 144,
+    'variance with a budget, new and old, identical (24 months: 12 actual-only, 12 budget-only)');
+  PERFORM fpa_test.as_user('user_viewerA');
+  PERFORM fpa_test.check(fpa_test.val(format('SELECT count(*)::text FROM fpa.variance(%L, NULL, ''2024-01-01'', ''2024-12-01'')', v_ec)) = 'PT404',
+    'a viewer of A only cannot read the new entity C (PT404)');
 END $test$;
 
 -- Report: failures, pass count, and the privilege evidence for the tables and functions 0003 adds or
@@ -514,16 +691,16 @@ BEGIN
           FROM pg_attribute at, aclexplode(at.attacl) a WHERE at.attrelid = c.oid AND at.attacl IS NOT NULL AND NOT at.attisdropped
          GROUP BY a.privilege_type, a.grantee ORDER BY 1) p) x
     WHERE c.relnamespace = 'fpa'::regnamespace AND c.relkind = 'r' AND x.cols IS NOT NULL AND c.relname IN ('plan_line_defs', 'sync_runs', 'actuals_monthly', 'line_map', 'plan_lines')), '(none)');
-  v_out := v_out || E'\n\n== Policies on the new tables ==\n'
+  v_out := v_out || E'\n\n== Policies 0003 adds or changes ==\n'
     || (SELECT string_agg(format('%s %s to %s using %s', p.policyname, p.cmd, array_to_string(p.roles, ','), replace(p.qual, 'fpa.', '')), E'\n' ORDER BY p.policyname)
-        FROM pg_policies p WHERE p.schemaname = 'fpa' AND p.tablename IN ('plan_line_defs', 'sync_runs'))
+        FROM pg_policies p WHERE p.schemaname = 'fpa' AND (p.tablename IN ('plan_line_defs', 'sync_runs') OR p.policyname IN ('actuals_monthly_read', 'line_map_read')))
     || E'\nAll policies in fpa: ' || (SELECT count(*) FROM pg_policies p WHERE p.schemaname = 'fpa')::text || ', all TO authenticated only: '
     || (SELECT bool_and(p.roles = '{authenticated}'::name[]) FROM pg_policies p WHERE p.schemaname = 'fpa')::text;
   v_out := v_out || E'\n\n== New functions: ACL, security, volatility, EXECUTE by role ==\n' || (SELECT string_agg(format('%s: definer=%s %s acl=%s | anon=%s authenticated=%s service_role=%s PUBLIC=%s',
         p.oid::regprocedure, p.prosecdef, CASE p.provolatile WHEN 's' THEN 'stable' WHEN 'i' THEN 'immutable' ELSE 'volatile' END, coalesce(array_to_string(p.proacl, ','), '(default)'),
         has_function_privilege('anon', p.oid, 'EXECUTE'), has_function_privilege('authenticated', p.oid, 'EXECUTE'), has_function_privilege('service_role', p.oid, 'EXECUTE'),
         EXISTS (SELECT 1 FROM aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')), E'\n' ORDER BY p.proname)
-    FROM pg_proc p WHERE p.pronamespace = 'fpa'::regnamespace AND p.proname IN ('import_actuals', 'set_line_map', 'account_map', 'unmapped_accounts', 'variance', 'create_budget_from_actuals'));
+    FROM pg_proc p WHERE p.pronamespace = 'fpa'::regnamespace AND p.proname IN ('import_actuals', 'set_line_map', 'account_map', 'unmapped_accounts', 'variance', 'create_budget_from_actuals', 'my_entity_ids'));
   v_out := v_out || E'\n\n== Verdict, all ' || (SELECT count(*) FROM pg_proc p WHERE p.pronamespace = 'fpa'::regnamespace)::text || E' fpa functions ==\nExecutable by PUBLIC: '
     || coalesce((SELECT string_agg(p.proname, ', ' ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace = 'fpa'::regnamespace
         AND EXISTS (SELECT 1 FROM aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')), 'none')

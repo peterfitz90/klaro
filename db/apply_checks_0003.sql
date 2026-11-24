@@ -15,7 +15,7 @@ DECLARE
   v_remove constant text[] := ARRAY['driver_values','drivers','line_map','packs','plan_lines','plan_versions','plans','scenarios'];
   v_fn_auth constant text[] := ARRAY['account_map','add_member','create_budget_from_actuals','create_entity','import_actuals',
                                      'is_entity_member','member_for_connection','member_for_driver','member_for_plan','member_for_scenario',
-                                     'member_for_version','member_in_jurisdiction','set_line_map','set_member','unmapped_accounts','variance'];
+                                     'member_for_version','member_in_jurisdiction','my_entity_ids','set_line_map','set_member','unmapped_accounts','variance'];
   v_fn_invoker constant text[] := ARRAY['account_map','create_budget_from_actuals','set_line_map','unmapped_accounts','variance'];
   v_fn_internal constant text[] := ARRAY['check_driver_value_plan','connection_entity','driver_entity','guard_locked_child',
                                          'guard_locked_driver_value','guard_locked_version','plan_entity','scenario_entity',
@@ -36,6 +36,20 @@ BEGIN
           WHERE p.schemaname = 'fpa' AND p.tablename IN ('plan_line_defs', 'sync_runs'))
         IS DISTINCT FROM 'plan_line_defs_read:SELECT:true,sync_runs_read:SELECT:fpa.is_entity_member(entity_id, ''viewer''::text)' THEN
     v_bad := v_bad || 'policies are not exactly the 42 (40 + plan_line_defs_read + sync_runs_read), all TO authenticated'::text;
+  END IF;
+  -- The two read policies 0003 changes: membership through my_entity_ids, evaluated once per query
+  -- (inside ARRAY(SELECT ...)), with no per-row membership helper left.
+  IF NOT EXISTS (SELECT 1 FROM pg_policies p WHERE p.schemaname = 'fpa' AND p.policyname = 'actuals_monthly_read' AND p.cmd = 'SELECT'
+                   AND p.roles = '{authenticated}' AND p.qual ~ '^\(?entity_id = ANY \(ARRAY\(' AND p.qual ~ 'fpa\.my_entity_ids\(''viewer''::text\)'
+                   AND p.qual !~ 'is_entity_member')
+     OR NOT EXISTS (SELECT 1 FROM pg_policies p WHERE p.schemaname = 'fpa' AND p.policyname = 'line_map_read' AND p.cmd = 'SELECT'
+                   AND p.roles = '{authenticated}' AND p.qual ~ '^\(?connection_id IN \(' AND p.qual ~ 'fpa\.connections'
+                   AND p.qual ~ 'entity_id = ANY \(ARRAY\(' AND p.qual ~ 'fpa\.my_entity_ids\(''viewer''::text\)'
+                   AND p.qual !~ 'member_for_connection') THEN
+    v_bad := v_bad || 'actuals_monthly_read or line_map_read is not the 0003 definition (my_entity_ids, once per query)'::text;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.oid = 'fpa.my_entity_ids(text)'::regprocedure AND p.prosecdef AND p.provolatile = 's' AND p.proretset) THEN
+    v_bad := v_bad || 'fpa.my_entity_ids is not a STABLE SECURITY DEFINER set-returning function'::text;
   END IF;
 
   -- 2. Grants match GRANTS_EVIDENCE.txt exactly (owner's own privileges excluded; any extra grant, to
@@ -73,8 +87,8 @@ BEGIN
                                   EXCEPT SELECT unnest(v_fn_auth || v_fn_internal))
                        UNION ALL (SELECT unnest(v_fn_auth || v_fn_internal)
                                   EXCEPT SELECT p.proname::text FROM pg_proc p WHERE p.pronamespace = 'fpa'::regnamespace)) d;
-  IF v_n <> 0 OR (SELECT count(*) FROM pg_proc p WHERE p.pronamespace = 'fpa'::regnamespace) <> 26 THEN
-    v_bad := v_bad || 'the function list differs from the evidence (expected 26 functions)'::text;
+  IF v_n <> 0 OR (SELECT count(*) FROM pg_proc p WHERE p.pronamespace = 'fpa'::regnamespace) <> 27 THEN
+    v_bad := v_bad || 'the function list differs from the evidence (expected 27 functions)'::text;
   END IF;
   IF (SELECT string_agg(p.proname, ',' ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace = 'fpa'::regnamespace AND NOT p.prosecdef
         AND p.proname NOT IN ('touch_updated_at', 'guard_locked_version', 'guard_locked_child', 'guard_locked_driver_value', 'check_driver_value_plan'))

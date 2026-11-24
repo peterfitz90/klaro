@@ -1,7 +1,7 @@
 -- Rolled-back test of db/rollback/0003_down.sql. Runs after 0003 and its fpa.schema_migrations row
 -- inside one transaction (db/bundle.mjs builds db/out/test_down_0003.sql, puts the rollback script in
 -- v_down and the 0001 apply checks in v_checks_0001). Ends by raising its result, so everything rolls
--- back. Expect "0 failure(s), 8 pass(es)".
+-- back. Expect "0 failure(s), 9 pass(es)".
 DO $t$
 DECLARE
   v_f text[] := '{}'; v_p int := 0;
@@ -47,6 +47,11 @@ BEGIN
   SELECT pg_get_constraintdef(k.oid) INTO v_origin_before FROM pg_constraint k WHERE k.conname = 'plan_lines_origin_check' AND k.connamespace = 'fpa'::regnamespace;
   IF v_origin_before = 'CHECK ((origin = ANY (ARRAY[''actual''::text, ''driver''::text, ''manual''::text])))' THEN v_p := v_p + 1;
   ELSE v_f := v_f || ('origin check is ' || coalesce(v_origin_before, 'missing')); END IF;
+  IF (SELECT string_agg(p.policyname || '=' || p.qual, ' ; ' ORDER BY p.policyname) FROM pg_policies p
+       WHERE p.schemaname = 'fpa' AND p.policyname IN ('actuals_monthly_read', 'line_map_read'))
+     = 'actuals_monthly_read=fpa.is_entity_member(entity_id, ''viewer''::text) ; line_map_read=fpa.member_for_connection(connection_id, ''viewer''::text)'
+     AND to_regprocedure('fpa.my_entity_ids(text)') IS NULL THEN v_p := v_p + 1;
+  ELSE v_f := v_f || 'the Phase 0 read policies are not restored exactly'::text; END IF;
   IF (SELECT count(*) FROM fpa.actuals_monthly a WHERE a.entity_id = v_e) = 1 AND (SELECT count(*) FROM fpa.plan_lines l WHERE l.version_id = v_v) = 1
      AND to_regclass('public.journals') IS NOT NULL THEN v_p := v_p + 1;
   ELSE v_f := v_f || 'data or something outside fpa changed'::text; END IF;

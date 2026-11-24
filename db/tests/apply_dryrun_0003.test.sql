@@ -2,7 +2,7 @@
 -- file except its COMMIT: 0003, its fpa.schema_migrations row and db/apply_checks_0003.sql (which has
 -- already passed by the time this runs). It then shows the checks fail closed (each fault below must
 -- make them raise), runs plpgsql_check over every PL/pgSQL function in fpa, and ends by raising its
--- result, so everything rolls back. Expect "0 failure(s), 13 pass(es)" and 0 plpgsql_check findings.
+-- result, so everything rolls back. Expect "0 failure(s), 15 pass(es)" and 0 plpgsql_check findings.
 CREATE EXTENSION IF NOT EXISTS plpgsql_check;
 DO $dry$
 DECLARE
@@ -25,7 +25,9 @@ BEGIN
       'UPDATE fpa.plan_line_defs SET display_sign = 1 WHERE key = ''revenue''',
       'UPDATE fpa.schema_migrations SET checksum = repeat(''0'', 64) WHERE filename LIKE ''0003%''',
       'INSERT INTO fpa.vat_rules (jurisdiction, rate_code, rate, effective_from) VALUES (''IE'', ''STD'', 23, ''2025-01-01'')',
-      'GRANT UPDATE (account_name) ON fpa.actuals_monthly TO authenticated'] LOOP
+      'GRANT UPDATE (account_name) ON fpa.actuals_monthly TO authenticated',
+      'ALTER POLICY actuals_monthly_read ON fpa.actuals_monthly USING (true)',
+      'GRANT EXECUTE ON FUNCTION fpa.my_entity_ids(text) TO anon'] LOOP
     BEGIN
       EXECUTE v_case;
       EXECUTE v_checks;

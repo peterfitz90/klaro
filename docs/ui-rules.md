@@ -69,3 +69,14 @@ as always and is never told which option was chosen.
   **"month may be incomplete"** beside Revenue (month) and Net profit.
 - Compare shows the same note on that month's column.
 - See `docs/kpi-definitions.md`.
+
+## 6. A call that takes too long
+
+- The database cancels any call that runs longer than its time limit (statement timeout: 8 seconds
+  for signed-in users on this project; code `57014`).
+- **Rule:** the UI shows a plain message such as **"This took too long. Try a shorter date range."**
+  It never shows a blank screen, a spinner that never ends, or partial figures.
+- Any figures already on screen from that request are cleared, and nothing is saved. The database
+  has already undone the call.
+- **Test:** a fake API that returns the timeout error for each data call (import, mapping, budget,
+  variance). The test checks that the message appears and no figures are shown.
