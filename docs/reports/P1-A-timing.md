@@ -18,7 +18,7 @@ other function runs in at most 2.0 seconds.
 **How it was run:**
 - The file was `db/out/timing_0003.sql` (sha `a291a8ae…`), rolled back.
 - Each call ran as `authenticated`, with `SET LOCAL statement_timeout = '8s'`, as its own statement.
-- Run on 24 Nov 2026, about 15:25 UTC.
+- Run on 24 Nov 2026 at 15:18 UTC; `scripts/check-sent.mjs` confirmed the text sent matched the file byte for byte.
 
 **The data, all made up:**
 - one entity;
