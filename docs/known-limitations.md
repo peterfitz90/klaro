@@ -30,3 +30,20 @@ The same behaviour already applies to Ledgrly's `public` schema (`/companie` hin
 **Consequence: names are public.** Never put a client name or a sensitive term in a table, column,
 function, schema, index, constraint, trigger or policy name. See the repo rule in `CLAUDE.md`.
 Revisit if Supabase or PostgREST adds a way to turn the hints off.
+
+## 2. The second-user check in a real browser has not been run
+
+**Deferred by Peter, 24 Nov 2026 (B5); he accepts the risk.** Evidence so far: `docs/reports/B5.md`.
+
+The B5 end-to-end test was run with one signed-in user only. That a second user cannot see another
+user's entities rests on the database tests, not on a browser session:
+
+- the schema test (627 checks, run S1 in `docs/reports/B3-preapply.md`) reads every table as a
+  signed-in non-member (zero rows everywhere), as the owner of another entity, and as a user who
+  belongs to both entities, with real JWT claims;
+- the deployed app reads only through row security with the user's own Clerk token (verified live
+  in B5: the entity list request returned 200 with that token, and 401 with a token Supabase does not
+  trust).
+
+**Required step:** Before the first real second user is given access, sign in as them and confirm
+they see no entities and cannot open another entity by its address.

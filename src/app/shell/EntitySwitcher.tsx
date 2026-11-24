@@ -18,7 +18,15 @@ export function EntitySwitcher({ current, entities }: { current: Entity; entitie
   const menuId = useId();
   const { pathname } = useLocation();
 
-  useEffect(() => setOpen(false), [pathname]);
+  // Close the menu when the page changes. Done while rendering, only on an actual change, not in an
+  // effect: an effect also runs after the first render, and if a click landed before it ran, it
+  // closed the menu that click had just opened (CI run 45362746252; EntitySwitcher.race.test.tsx).
+  const [menuPath, setMenuPath] = useState(pathname);
+  if (menuPath !== pathname) {
+    setMenuPath(pathname);
+    setOpen(false);
+  }
+
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
