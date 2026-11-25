@@ -5,13 +5,13 @@
 | # | Item | Result |
 |---|---|---|
 | 1 | Row security, grants and function privileges verified as anon, authenticated (and service_role where relevant); cross-entity leak test passes (evidence in docs/reports/) | **PASS** at database level and live API. The browser check with a second user is deferred (known limitation 2) |
-| 2 | Typecheck, lint and tests green | **PASS** locally (GitHub Actions results not checked: no `gh` on this machine) |
+| 2 | Typecheck, lint and tests green | **PASS:** passed locally; CI failed at `0159c26`, fixed in `0f2b011`, CI green |
 | 3 | Sign-in works on a preview under ledgrly.ie with the shared Clerk instance | **DEFERRED.** Works on production `klaro.ledgrly.ie`; the preview hostname is still on an old build |
 | 4 | No Ledgrly table, policy, function or repo file modified (state how you verified) | **PASS** |
 | 5 | Supabase migration history row count unchanged | **PASS** (102) |
 | 6 | VAT draft rules not applied to production | **PASS** |
 
-Overall: **5 pass, 1 deferred (item 3), none failed.** Item 1 passes with the browser second-user
+Overall: **5 pass, 1 deferred (item 3), none failed.** Item 2 was red in CI at `0159c26`; fixed and green at `0f2b011`. Item 1 passes with the browser second-user
 check deferred.
 
 ## Evidence
@@ -43,19 +43,64 @@ check deferred.
 
 ### 2. Typecheck, lint, tests
 
-Run 24 Nov 2026 on `main` (`d52bb6f` plus this report):
+**Summary:** passed locally; CI failed at `0159c26`, fixed in `0f2b011`, CI green.
 
-| Command | Result |
+**The failure:**
+- GitHub Actions run 45362746252 (job `check`, commit `0159c26`) failed one test:
+  `src/app/app.test.tsx`, "entities > switching entity keeps the page".
+- It had passed locally, and in CI runs #1 to #4.
+
+**Reproduction:**
+- Workflow setup: Node 24.22.3 (the official zip from nodejs.org, checked against its published
+  SHA-256, used only from the scratchpad), `npm ci`, `CI=true`.
+- `src/app/app.test.tsx` failed **1 run in 20**, with the same test.
+
+**Root cause: the component, not the test.**
+- `EntitySwitcher` closed its menu in `useEffect(..., [pathname])`, and that effect also runs after
+  the first render.
+- The shell first renders when the entity data arrives. That is an ordinary update, after which
+  React runs effects in a later task.
+- Testing Library's `findBy…` could resolve in that gap. The test's click then opened the menu, and
+  the pending effect closed it again.
+- Logging inside the clone showed the order: in the failing run "click: toggle" came **before**
+  "effect: close"; in passing runs the effect came first.
+- A real user clicking the chip in that instant would lose the click.
+- The test's own query was fine: `fireEvent.click` applies its update before returning.
+
+**Fix (`0f2b011`):**
+- The menu now closes only when the page actually changes. That is checked while rendering, so no
+  effect runs after the first render.
+- The same gap affected the Ctrl/Cmd+K listener, attached in a `useEffect`: a key press in that
+  instant was lost. It is now attached during the commit (`useLayoutEffect`). In `app.test.tsx` the
+  palette test had the same exposure.
+- The other tests interact only through React's own handlers (submit, change, link click), which are
+  not exposed.
+- The palette's highlight reset moved from an effect into the typing handler. That is a
+  simplification, not a bug fix: typing is an urgent update, so that effect could not lose a key.
+
+**Regression tests** (`src/app/shell/race.test.tsx`):
+- Both render as an ordinary update and act from a DOM observer the instant the page appears, as
+  `findBy…` did.
+- On the old code both failed **10 of 10** runs; with the fix both pass **10 of 10**.
+
+**Timeouts:**
+- No longer timeouts and no retries.
+- The 5-second Testing Library wait added in B4 for an unexplained one-off failure (most likely this
+  race) is **removed**; the default is back.
+
+**After the fix:**
+
+| Where | Result |
 |---|---|
-| `npm run typecheck` | exit 0 |
-| `npm run lint` | exit 0 |
-| `npm test` | 13 files, **56 passed** |
-| `npm run build` | exit 0 |
-| `npm run check:bundle` | no server secrets, no demo fakes |
+| Node 24, `CI=true`, full `npm test` × 20 | 20 of 20 green (58 tests) |
+| Same, `app.test.tsx` alone × 20 | 20 of 20 green |
+| Same, default timeout restored, full `npm test` × 20 | 20 of 20 green |
+| **GitHub Actions run 45373436151** (CI #6, job `check` 138373268837, commit `0f2b011`) | **Success**: typecheck, lint, test (14 files, **58 passed**, including `race.test.tsx`), build, `check:bundle`, all passed. Read on the GitHub web page in your signed-in browser (Actions → run → job log), as `gh` is not installed here |
 
-- The same commands run in GitHub Actions (`.github/workflows/ci.yml`) on pull requests and on pushes
-  to `main`. I could not read the results because `gh` is not installed here; check the repo's Actions tab.
-- The database tests are in item 1.
+**Actions versions:**
+- `actions/checkout` and `actions/setup-node` moved from v4 to **v7**, one line each. Both v7 releases
+  run on Node 24, and v7 keeps the `node-version` and `cache` inputs the workflow uses.
+- Run #6's summary shows no annotations, so the Node 20 deprecation warning is gone.
 
 ### 3. Sign-in on a preview under ledgrly.ie with the shared instance
 
@@ -108,6 +153,5 @@ Run 24 Nov 2026 on `main` (`d52bb6f` plus this report):
 
 1. **Preview hostname:** fix it in Vercel, then sign in there once (item 3).
 2. **Second real user:** the required step in `docs/known-limitations.md` (2).
-3. **GitHub Actions:** look at the repo's Actions tab once to confirm CI is green there too.
 
-FINAL.md has not been written.
+FINAL.md: `docs/reports/FINAL.md`.

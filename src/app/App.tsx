@@ -4,6 +4,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { CashPage } from '../features/cash/CashPage';
 import { ComparePage } from '../features/compare/ComparePage';
 import { ConnectPage } from '../features/connect/ConnectPage';
+import { MapPage } from '../features/connect/MapPage';
 import { CreateEntityPage, EntityListPage, HomeRedirect } from '../features/entities/pages';
 import { PlanPage } from '../features/plan/PlanPage';
 import { ReportPage } from '../features/report/ReportPage';
@@ -27,6 +28,7 @@ export function App() {
           <Route path="cash" element={<CashPage />} />
           <Route path="report" element={<ReportPage />} />
           <Route path="connect" element={<ConnectPage />} />
+          <Route path="connect/map" element={<MapPage />} />
           <Route path="*" element={<NotFound inShell />} />
         </Route>
         <Route path="*" element={<NotFound />} />
