@@ -15,7 +15,7 @@ import {
 import { callMessage } from '../../lib/errors';
 import { useLoad } from '../../lib/useLoad';
 import { accountMap, listConnections } from '../connect/api';
-import { drCr, monthLabel, plural } from '../connect/format';
+import { dateTime, drCr, monthLabel, plural } from '../connect/format';
 import { summarise, toAccounts } from '../connect/mapping';
 import { useCurrentEntity } from '../entities/context';
 import { getPlan, listBudgets, variance } from '../plan/api';
@@ -40,7 +40,8 @@ export function ComparePage({ today }: { today?: Date } = {}) {
   const base = useLoad(async () => {
     const plan = await getPlan(entity.id);
     const [budgets, connections, accounts] = await Promise.all([listBudgets(plan.id), listConnections(entity.id), accountMap(entity.id)]);
-    return { plan, budgets, latest: latestActualsMonth(connections), excluded: summarise(toAccounts(accounts)) };
+    const lastSynced = connections.reduce<string | null>((m, c) => (c.last_synced_at && (!m || c.last_synced_at > m) ? c.last_synced_at : m), null);
+    return { plan, budgets, latest: latestActualsMonth(connections), lastSynced, excluded: summarise(toAccounts(accounts)) };
   }, [entity.id], err => callMessage(err, 'compare'));
 
   const [versionId, setVersionId] = useState<string | null | undefined>(undefined);
@@ -145,7 +146,7 @@ export function ComparePage({ today }: { today?: Date } = {}) {
             </div>
           </div>
           <p className="f-hint" data-testid="actuals-through">
-            {ctx.latest ? `Actuals through ${monthLabel(ctx.latest)}.` : 'No actuals yet.'} Revenue, costs and profit are shown as positive numbers;
+            {ctx.latest ? `Actuals through ${monthLabel(ctx.latest)}, last synced ${ctx.lastSynced ? dateTime(ctx.lastSynced) : 'never'}.` : 'No actuals yet.'} Revenue, costs and profit are shown as positive numbers;
             a cost over budget is unfavourable.
           </p>
           <p style={{ marginTop: 8 }} data-testid="excluded-summary">
