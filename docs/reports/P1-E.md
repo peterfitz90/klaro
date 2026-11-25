@@ -181,8 +181,22 @@ page never scrolls sideways (page width 384 px plus the scrollbar).
 
 ## Preview
 
-I merged phase-1 into `preview` again and pushed it, as for 1C (option A); see the chat for the commit
-and the check that the new build is served.
+- **Merge:** I merged phase-1 (`79b7801`) into `preview` as `f194565` and pushed it, as for 1C
+  (option A). The merged files are identical to phase-1.
+- **Build:** Vercel reported "Deployment has completed".
+- **What `klaro-preview.ledgrly.ie` serves:** bundle `index-ByUCANF3.js`, with the live Clerk key, no
+  development key, and the Budgets, Compare and rebuild-warning text.
+- **CI:** GitHub Actions passed on draft PR #1 for `79b7801`
+  (https://github.com/peterfitz90/klaro/actions/runs/45595449744).
+- **A read-only look at "test 1" on the preview** (no clicks that save):
+  - **Plan:** "Actuals through Dec 2025", "No budgets yet".
+  - **Compare:** loads the real figures for Dec 2025, with no alerts:
+    - Marketing €805.14, the one account mapped there;
+    - Operating and Net profit -€805.14;
+    - Unmapped -€133,396.26, from the 1,249 unmapped accounts;
+    - "Not in the P&L (excluded): 3 accounts, net total €0.00". Those accounts have no actuals left
+      in that entity.
+  - **The KPI strip** still shows "—" in all four tiles.
 
 ## Walk-through for you (on the preview)
 
