@@ -1,5 +1,45 @@
 # P1-C: CSV import and account mapping (1B and 1C review stop)
 
+> **Status: 1C approved and closed by Peter, 25 Nov 2026.** The walk-through results are recorded
+> below under "1C checklist results". The test data is kept until Gate 1; nothing is deleted.
+
+## 1C checklist results
+
+Recorded 25 Nov 2026 from the database and Supabase's gateway log, read-only. Nothing was changed.
+
+**What the data shows, and how it differs from the planned steps:**
+- **One entity was used, named "test 1".** It was created at 10:02:56 UTC and has one CSV
+  connection. There is no "Walkthrough Test 1" or "Walkthrough Test 2".
+- **Both imports went into it,** on the same connection and the same months (Jan–Dec 2025).
+  - Because a month is replaced whole, the second import replaced the sample's 193 rows.
+  - "test 1" now holds only the 1,250-account data.
+- **Not run:** the 16,000-row file was not imported, and the sample was not imported twice (step 9).
+- **The requirements are still met:**
+  - the gateway test needs one import of at least 15,000 rows and 3 MB; the 1,250-account file was
+    15,000 rows and 3.36 MB;
+  - the paging test needs Map accounts to read past 1,000 rows; it did, in "test 1".
+
+| Check | Result |
+|---|---|
+| Sample import (`sample-actuals.csv`) | `sync_runs` `d89fca3d…`: succeeded, 193 rows added, 0 removed, 12 months (Jan–Dec 2025), 10:03:37 UTC. Gateway: `POST /rest/v1/rpc/import_actuals`, request body 18,638 bytes, **HTTP 200**, 213 ms at the server |
+| Mapping (sample) | Two `set_line_map` calls at 10:03:45 and 10:03:56, both HTTP 200, then `account_map` returning 17 rows (`Content-Range 0-16`) |
+| **Large import through the gateway** (`large-actuals-1250-accounts-12-months.csv`: 15,000 rows, 3,359,791 bytes) | `sync_runs` `95a73c9d…`: **succeeded, 15,000 rows added, 193 removed**, 12 months (Jan–Dec 2025), 10:04:57 UTC. Gateway: request body **4,244,933 bytes, HTTP 200, 3,866 ms** at the server. The gateway accepted a 4.2 MB request |
+| **Paging past 1,000 rows against the real API** | Map accounts at 10:05:15 made **two** `account_map` requests: **rows 0–999** (`Content-Range 0-999`, HTTP 200, 233 ms) and **rows 1000–1266** (`Content-Range 1000-1266`, HTTP 200, 99 ms). That is 1,267 rows: the 1,250 new accounts plus the 17 sample accounts, which keep their mappings with no actuals. The same two-page read happened again at 10:05:27 after a save |
+| Account counts now (database, read-only) | "test 1": 1,250 accounts with actuals, 15,000 actual rows, 18 mappings (3 to excluded), 2 `sync_runs` |
+| Time from Import to the result on screen | Not in any log. The server time was 3.9 s, and the browser adds the upload and the response |
+| Real export: check only | Peter reports it worked as expected. It runs only in the browser, so nothing reached the database and nothing was recorded |
+
+**The data is kept until Gate 1, as instructed.** It is the "test 1" entity, its connection, 15,000
+actual rows, 18 mappings and 2 import records.
+
+**For the 1E walk-through:**
+- "test 1" no longer has the sample's 2025 actuals, and 1,249 of its 1,250 accounts are unmapped.
+- A budget cannot be built from it: the database refuses until every account is mapped.
+- So the 1E walk-through (`P1-E.md`) uses a new entity with the sample imported again. Nothing is
+  deleted or replaced.
+
+---
+
 25 Nov 2026, branch `phase-1`. **Nothing is merged to main and no database change was made**: 1B and 1C
 are screens only, on top of 0003 (applied 25 Nov). 1D and 1E are not started.
 
@@ -200,7 +240,18 @@ block per account. The real walk-through below is still needed.
     from main only in two older report files.
   - The phase-1 build has a `*.vercel.app` address, but the shared Clerk instance refuses sign-in there
     (B4).
-- **Two ways to put phase-1 on the preview hostname** (your choice):
+- **Done on your instruction (option A, 25 Nov):**
+  - I merged phase-1 into `preview` as `5b38b5b` and pushed it. The merged files are identical to
+    phase-1 at `254019f`.
+  - Vercel reported "Deployment has completed".
+  - `klaro-preview.ledgrly.ie` now serves bundle `index-DcCy4_OD.js`:
+    - the live Clerk key, and no development key;
+    - the **Import** and **Map accounts** tabs.
+  - `/samples/sample-actuals.csv` returns the CSV: first line `account_code,account_name,month,amount`,
+    193 rows. The broken copy has `$120.00` on line 6.
+  - Seeing the tabs on screen needs an entity. Your account has none on the preview yet, and I created
+    no data, so that is step 2 of the walk-through.
+- The two options as first written, for the record:
   - **A. Recommended: merge phase-1 into `preview`.** No Vercel setting changes. Say "merge phase-1
     into preview" and I will run `git checkout preview && git merge phase-1 && git push`. Vercel then
     builds `preview` and the hostname updates by itself in about a minute.

@@ -22,12 +22,14 @@ export class AppError extends Error {
 export const TIMEOUT_CODE = '57014';
 
 /** Which kind of call timed out: each has its own message (docs/ui-rules.md section 6). */
-export type CallKind = 'import' | 'compare' | 'mapping' | 'budget';
+export type CallKind = 'import' | 'compare' | 'mapping' | 'budget' | 'kpi';
 export const TIMEOUT_MESSAGES: Record<CallKind, string> = {
   import: 'This took too long. Try a smaller file.',
   compare: 'This took too long. Try a shorter date range.',
   mapping: 'This took too long. Nothing was changed. Try again, and if it keeps happening, tell us.',
   budget: 'This took too long. Nothing was changed. Try again, and if it keeps happening, tell us.',
+  // Proposed for the KPI strip (not live yet): a read, so no "Nothing was changed". Peter to confirm.
+  kpi: 'This took too long. Try again, and if it keeps happening, tell us.',
 };
 
 export function isTimeout(err: unknown): boolean {

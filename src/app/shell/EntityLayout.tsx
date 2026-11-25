@@ -13,6 +13,8 @@ import { SignOutButton } from '../auth';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { CommandPalette, usePaletteHotkey } from './CommandPalette';
 import { EntitySwitcher } from './EntitySwitcher';
+import { LiveKpiStrip } from '../../features/kpi/LiveKpiStrip';
+import { KPI_STRIP_LIVE } from './kpiSwitch';
 import { KpiStrip } from './parts';
 import { entityPath, paletteItems, TASKS } from './tasks';
 
@@ -112,7 +114,7 @@ function Shell({ current }: { current: CurrentEntity }) {
           </div>
         </header>
         <main className="content" id="main">
-          {showKpis && <KpiStrip />}
+          {showKpis && (KPI_STRIP_LIVE ? <LiveKpiStrip /> : <KpiStrip />)}
           <ErrorBoundary key={location.pathname}>
             <Outlet />
           </ErrorBoundary>

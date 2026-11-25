@@ -48,14 +48,14 @@ every item below done and recorded in `docs/reports/P1-C.md`.
 - The API returns at most 1,000 rows per request, so 1,250 proves the screen pages past the cap against
   the real API, not only the fake one in the tests.
 
-| Recorded result | Value |
+| Recorded result (25 Nov 2026; 1C closed) | Value |
 |---|---|
-| Entity | Walkthrough Test 2 |
-| Import: rows, file size, time, `import_actuals` HTTP status | |
-| `sync_runs` row (read by Claude afterwards) | |
-| Map accounts status text | |
-| `account_map` requests in the Network tab (ranges and status codes) | |
-| Accounts in the database for that entity (read by Claude, read-only) | |
+| Entity | "test 1". The walk-through used one entity, not a new "Walkthrough Test 2" (see `docs/reports/P1-C.md`) |
+| Import: rows, file size, time, `import_actuals` HTTP status | 15,000 rows, 3,359,791 bytes; request body 4,244,933 bytes; **HTTP 200**; 3,866 ms at the server (gateway log) |
+| `sync_runs` row (read by Claude afterwards) | `95a73c9d…`: succeeded, 15,000 added, 193 removed (the sample's rows, same months), Jan–Dec 2025, 10:04:57 UTC |
+| Map accounts status text | Peter: as expected (1,250 accounts with actuals, all unmapped) |
+| `account_map` requests (gateway log) | Two: `Content-Range 0-999` and `1000-1266`, both HTTP 200 (1,267 rows: 1,250 with actuals plus 17 mapped sample accounts with none) |
+| Accounts in the database for that entity (read by Claude, read-only) | 1,250 accounts with actuals; 15,000 actual rows; 18 mappings |
 
 ## Also confirm
 
