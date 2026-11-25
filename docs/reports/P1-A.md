@@ -1,5 +1,9 @@
 # P1-A: database for Phase 1, built and tested (review stop)
 
+> **Status (25 Nov 2026):** 0003 was applied on 25 Nov at 09:03:33 UTC, after the performance fix
+> (`P1-A-timing.md`). The apply, the checks run after it and the anonymous-key smoke test (14 of 14
+> refused) are in `P1-A-smoke.md`. The text below is the 24 Nov review as written then.
+
 24 Nov 2026, branch `phase-1`. **Nothing is applied.** All three rolled-back runs passed on the exact
 bundle files. This is the 1A review stop. With your approval I'll apply `db/out/apply_0003.sql` the
 way B3 was done, then run the read-only checks and an anonymous-key request against the new

@@ -12,6 +12,8 @@ These are Peter's conditions from the 1A approval (24 Nov 2026). They bind the U
   - It keeps going until a page comes back with fewer rows than were asked for.
   - Both functions already return a fixed order (unmapped first, then account code, then
     connection), so pages never overlap or skip.
+- Which line-map rows a user can see also depends on the `connections_read` policy (see
+  `docs/db-notes.md`). Any change to that policy must re-run the `line_map` identity matrix.
 - **Never show "mapping complete" from a single, unpaged call.** "Complete" means every page has been
   read and none of the accounts is unmapped.
 - **Test:** a fixture of more than 1,000 made-up accounts (for example 1,234), served in pages by a
@@ -74,7 +76,14 @@ as always and is never told which option was chosen.
 
 - The database cancels any call that runs longer than its time limit (statement timeout: 8 seconds
   for signed-in users on this project; code `57014`).
-- **Rule:** the UI shows a plain message such as **"This took too long. Try a shorter date range."**
+- **Rule:** the UI shows a plain message that fits the call:
+
+  | Call | Message |
+  |---|---|
+  | Import (`import_actuals`) | **"This took too long. Try a smaller file."** |
+  | Compare (`variance`) | **"This took too long. Try a shorter date range."** |
+  | Mapping, budget | **"This took too long. Try again."** |
+
   It never shows a blank screen, a spinner that never ends, or partial figures.
 - Any figures already on screen from that request are cleared, and nothing is saved. The database
   has already undone the call.
