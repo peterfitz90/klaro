@@ -1,6 +1,7 @@
 Grants evidence for 0003_fpa_actuals_budget_variance.sql, uncut, as raised by the report block of
-db/out/test_0003.sql (sha256 0ada9978ea0c9a7a…) in the rolled-back run of 24 Nov 2026, 14:42 UTC
-(byte-checked with scripts/check-sent.mjs). Result line: 0 failure(s), 249 pass(es).
+db/out/test_0003.sql (sha256 85e92d0c5e6d5a24…) in the rolled-back run of 25 Nov 2026, 08:45 UTC
+(byte-checked with scripts/check-sent.mjs). Result line: 0 failure(s), 276 pass(es).
+(Supersedes the 24 Nov run of the earlier 0003, before the performance fix.)
 The full schema's expected grants after 0003 are asserted by db/apply_checks_0003.sql.
 
 == Tables 0003 adds or changes: row security and ACL, less the owner entry ==
@@ -14,7 +15,11 @@ sync_runs: rls=t authenticated=r/postgres
 line_map: authenticated INSERT(connection_id,account_code,plan_line,vat_rate_code) authenticated UPDATE(plan_line,vat_rate_code)
 plan_lines: authenticated INSERT(version_id,scenario_id,plan_line,period,amount,origin) authenticated UPDATE(amount,origin)
 
-== Policies on the new tables ==
+== Policies 0003 adds or changes ==
+actuals_monthly_read SELECT to authenticated using (entity_id = ANY (ARRAY( SELECT my_entity_ids('viewer'::text) AS my_entity_ids)))
+line_map_read SELECT to authenticated using (connection_id IN ( SELECT c.id
+   FROM connections c
+  WHERE (c.entity_id = ANY (ARRAY( SELECT my_entity_ids('viewer'::text) AS my_entity_ids)))))
 plan_line_defs_read SELECT to authenticated using true
 sync_runs_read SELECT to authenticated using is_entity_member(entity_id, 'viewer'::text)
 All policies in fpa: 42, all TO authenticated only: true
@@ -23,13 +28,14 @@ All policies in fpa: 42, all TO authenticated only: true
 fpa.account_map(uuid): definer=f stable acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
 fpa.create_budget_from_actuals(uuid,uuid,text,date,date,jsonb): definer=f volatile acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
 fpa.import_actuals(uuid,uuid,jsonb,text): definer=t volatile acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
+fpa.my_entity_ids(text): definer=t stable acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
 fpa.set_line_map(uuid,jsonb): definer=f volatile acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
 fpa.unmapped_accounts(uuid): definer=f stable acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
 fpa.variance(uuid,uuid,date,date): definer=f stable acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
 
-== Verdict, all 26 fpa functions ==
+== Verdict, all 27 fpa functions ==
 Executable by PUBLIC: none
 Executable by anon: none
 Executable by service_role: none
-Executable by authenticated: account_map, add_member, create_budget_from_actuals, create_entity, import_actuals, is_entity_member, member_for_connection, member_for_driver, member_for_plan, member_for_scenario, member_for_version, member_in_jurisdiction, set_line_map, set_member, unmapped_accounts, variance
+Executable by authenticated: account_map, add_member, create_budget_from_actuals, create_entity, import_actuals, is_entity_member, member_for_connection, member_for_driver, member_for_plan, member_for_scenario, member_for_version, member_in_jurisdiction, my_entity_ids, set_line_map, set_member, unmapped_accounts, variance
 Executable by no API role (internal): check_driver_value_plan, connection_entity, driver_entity, guard_locked_child, guard_locked_driver_value, guard_locked_version, plan_entity, scenario_entity, touch_updated_at, version_entity

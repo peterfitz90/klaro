@@ -1,80 +1,105 @@
-# P1-A timing: STOPPED before apply
+# P1-A timing: after the performance fix
 
-24 Nov 2026. **Two functions take more than 8 seconds at the agreed limits: `create_budget_from_actuals`
-and `variance` over 36 months. Both are far over your 3-second bar, so 0003 is not applied.** Every
-other function runs in at most 2.0 seconds.
+25 Nov 2026. **Every timed call is under your 3-second bar. The slowest worst case is the 20,000-row
+import, at 1.34 seconds.** Nothing is applied. 0003 waits for your approval of these timings.
 
-## Role timeouts on this project (read-only check of `pg_roles.rolconfig`)
+## Conditions
 
-| Role | Setting |
-|---|---|
-| `authenticated` | `statement_timeout=8s` (as you thought) |
-| `authenticator` | `statement_timeout=8s`, `lock_timeout=8s`, and the `safeupdate` library. That library blocks DELETE and UPDATE without a WHERE clause; every DELETE in 0003 has one |
-| `anon` | `statement_timeout=3s` |
-| `service_role` | none |
+- **Role:** `authenticated`, with `SET LOCAL statement_timeout = '8s'`. That matches the role's
+  setting on this project: `pg_roles.rolconfig` for `authenticated` is `statement_timeout=8s`.
+  `authenticator` also has `lock_timeout=8s`, and `anon` has 3 s.
+- **Each call:** its own statement. Each was run 3 times; the worst is reported.
+- **Realistic load, all made up:**
+  - 50 other entities, each with 200 accounts × 24 months: 240,000 actual rows and 10,000 line-map rows;
+  - plus the test entity: 1,500 accounts and 44,000 actual rows;
+  - **284,000 actual rows across 51 entities.**
+  - The timing user is also a viewer of 5 of the other entities, so the access helper returns several ids.
+- **Run:** `db/out/timing_0003.sql` (sha-256 `20aa6b1d3efa8923…`), 25 Nov 2026 at 08:51 UTC, rolled
+  back. `scripts/check-sent.mjs` confirmed the text sent was byte-identical to the file.
 
-## Timings
+## Results
 
-**How it was run:**
-- The file was `db/out/timing_0003.sql` (sha `a291a8ae…`), rolled back.
-- Each call ran as `authenticated`, with `SET LOCAL statement_timeout = '8s'`, as its own statement.
-- Run on 24 Nov 2026 at 15:18 UTC; `scripts/check-sent.mjs` confirmed the text sent matched the file byte for byte.
+| Call | Runs (ms) | Worst | Within 3 s |
+|---|---|---|---|
+| `import_actuals`: 20,000 rows, 5,025,471 bytes (run 1 loads, runs 2–3 replace all 20 months) | 1,257 / 1,282 / 1,341 | **1,341 ms** | yes |
+| `account_map`: 1,500 accounts over 44,000 rows | 168 / 162 / 161 | **168 ms** | yes |
+| `unmapped_accounts`: same entity (30 unmapped returned) | 163 / 160 / 160 | **163 ms** | yes |
+| `create_budget_from_actuals`: 12-month window, 1,500 mapped accounts, 96 lines | 249 / 196 / 191 | **249 ms** | yes |
+| `variance`: 36 months, with a budget, 432 rows | 309 / 303 / 303 | **309 ms** | yes |
+| `set_line_map`: 1,470 accounts (setup, for reference) | 488 | 488 ms | yes |
 
-**The data, all made up:**
-- one entity;
-- 1,500 accounts;
-- 44,000 actual rows over 36 months (2022-09 to 2025-08);
-- all 1,500 accounts mapped.
+## Before and after
 
-| Call | Time | Within 3 s? |
+| Call | Before the fix (24 Nov, 1 entity, 44,000 rows) | After (284,000 rows, 51 entities) |
 |---|---|---|
-| `import_actuals`, 20,000 rows, 5,025,471 bytes, first load | 2,028 ms | yes |
-| `import_actuals`, the same 20,000 rows again (deletes 20,000, inserts 20,000) | 1,901 ms | yes |
-| `import_actuals`, 18,000 rows | 1,106 ms | yes |
-| `import_actuals`, 6,000 rows | 318 ms | yes |
-| `set_line_map`, 1,500 accounts | 778 ms | yes |
-| `account_map`, 1,500 accounts over 44,000 rows | 1,178 ms | yes |
-| `unmapped_accounts`, same entity | 1,179 ms | yes |
-| **`create_budget_from_actuals`**, 12-month window, 1,500 mapped accounts | **> 8,000 ms (cancelled)** | **no** |
-| **`variance`**, 36 months (run without a budget, because the budget call was cancelled) | **> 8,000 ms (cancelled)** | **no** |
-| `create_budget_from_actuals`, rebuild | not run (no version to rebuild) | — |
+| `create_budget_from_actuals` | cancelled at **8 s** | 249 ms |
+| `variance`, 36 months | cancelled at **8 s** | 309 ms |
+| `account_map` | 1,178 ms | 168 ms |
+| `unmapped_accounts` | 1,179 ms | 163 ms |
+| Import of 20,000 rows | 2,028 ms | 1,341 ms |
 
-**Earlier runs:**
-- `2336dd31…` aborted at the budget call, and its timings were lost with the rollback.
-- `90b5e1fd…` aborted at the rebuild step, which hit a missing version I didn't handle.
-- `a291a8ae…`: the first attempt was declined; the re-run you approved produced the table above.
+## What the fix was (one attempt, no further tuning)
 
-## Cause
+1. **A new helper, `fpa.my_entity_ids(min_role)`.**
+   - It returns only the signed-in user's own active entities at that role or above.
+   - It is STABLE and SECURITY DEFINER, with a fixed search_path.
+   - Only `authenticated` can run it: not anon, service_role or PUBLIC.
+2. **The read policies on `actuals_monthly` and `line_map` use the helper once per query**, inside
+   `ARRAY(SELECT …)`, instead of a membership check on every row.
+   - The rule is unchanged: active member, viewer or above.
+   - There are still 42 policies, all TO authenticated only.
+3. **`create_budget_from_actuals` and `variance` read the actuals once**, summed per line and month,
+   and build their results with joins instead of per-cell subqueries.
 
-**Row security checks every row, and each check is a separate query.** The functions run as the
-caller, so row security checks each row they read. The checks call SECURITY DEFINER helpers
-(`is_entity_member`, `member_for_connection` → `connection_entity`). Postgres can't inline those, so
-every check is its own small query.
-- A single pass over all 44,000 rows costs about 1.2 seconds (`account_map`).
+## Proof that nothing changed except speed
 
-**The two slow functions read the same rows many times:**
-- `create_budget_from_actuals` sums the actuals in a subquery once per plan line and month (8 × 12 = 96 times). Each pass pays the per-row check again.
-- `variance` builds its 12 lines × 36 months grid from the summed actuals. The plan has to be checked, but the likely cause is the same: the per-month subqueries re-scan the summed actuals and line map once per cell.
+From `test_0003.sql` (sha-256 `85e92d0c5e6d5a24…`), byte-checked: **0 failures, 276 passes.**
 
-## Proposed fix (needs your OK: it changes 0003 and the read policy on two Phase 0 tables)
+- **The original 249 checks are unchanged and pass.** They include the 8 shared rounding cases and
+  the 20 hand-computed variance cells.
+- **The helper, checked for all 9 identities:** owner, editor and viewer of A; an inactive member; a
+  non-member; B's owner; anon; service_role; no user id. Each gets only their own entities, at the
+  role asked for.
+- **Old and new read rules give identical rows for all 9 identities**, on both `actuals_monthly` and
+  `line_map`.
+  - The test switches the policies back to the Phase 0 definitions, records each identity's row count
+    and a hash of its row ids, then switches back and compares.
+  - The comparison isn't trivial: owner A sees more than 100 rows, B sees some, the non-member sees
+    none, and anon is refused.
+- **Old and new functions side by side**, on 200 accounts × 12 months. Test-only copies of the
+  original functions live in `fpa_test`.
+  - `variance` with 10 unmapped accounts over 24 months: identical.
+  - `create_budget_from_actuals` with five different uplifts: identical (96 lines, the same amounts).
+  - `variance` with that budget: identical.
 
-1. **Check membership once per query, not once per row.**
-   - A new SECURITY DEFINER helper, `fpa.my_entity_ids(min_role)`, returns the caller's active entity ids.
-   - The read policies on `actuals_monthly` and `line_map` would use
-     `entity_id = ANY (ARRAY(SELECT fpa.my_entity_ids('viewer')))`. Postgres evaluates that list once per query.
-   - This is the pattern Supabase recommends for faster row security. The access rule is the same: active membership, viewer or above.
-   - For `line_map`, the check goes through its connection's entity.
-   - It is done with `ALTER POLICY` inside 0003, so nothing is dropped. The rollback restores the Phase 0 policies.
-2. **Read once in both slow functions.**
-   - In `create_budget_from_actuals` and `variance`, add up the mapped actuals once into a grouped result (line × month).
-   - Build the grid with joins instead of per-cell subqueries.
-   - The results don't change. The variance figures and rounding cases are already pinned by the tests.
-3. **Re-run, then report.**
-   - Re-run all four bundles: the test, the dry run, the rollback test and this timing run.
-   - Report every timing against the 3-second bar.
-   - Apply only with your OK.
+**Rollback** (`test_down_0003.sql`, sha-256 `42ba8a6f20b1b318…`): **0 failures, 9 passes**.
+- It restores the exact Phase 0 policy text:
+  - `fpa.is_entity_member(entity_id, 'viewer'::text)`;
+  - `fpa.member_for_connection(connection_id, 'viewer'::text)`.
+- It removes the helper.
+- The 0001 apply checks pass again afterwards.
 
-## Not done (blocked on this)
+**Dry run** (`dryrun_apply_0003.sql`, sha-256 `b9b39f2d30b8cb34…`): **0 failures, 15 passes;
+plpgsql_check found nothing in 12 functions.**
+- The apply checks now expect the new policy definitions and 27 functions.
+- Two new faults are caught: a policy loosened to `true`, and anon allowed to run the helper.
 
-- The apply.
-- The anon smoke test (`P1-A-smoke.md`).
+**Read-only check afterwards** (25 Nov):
+- Supabase's migration history: **102** rows.
+- `fpa.schema_migrations`: 0001 only.
+- No 0003 objects, and no `fpa_test`.
+- Both read policies back to their Phase 0 text.
+- 0 entities and 0 actuals.
+- `plpgsql_check` not installed.
+
+## Earlier runs (24 Nov), before the fix
+
+These established the problem: `create_budget_from_actuals` and 36-month `variance` were both
+cancelled at 8 seconds, at 44,000 rows. The cause was a membership check on every row, by helpers that
+can't be inlined, repeated once per plan line and month.
+
+| Run | File | What happened |
+|---|---|---|
+| 1 | `2336dd31…` | Aborted at the budget call; its timings were lost with the rollback |
+| 2 | `90b5e1fd…` | Aborted at the rebuild step, which hit a missing version I didn't handle |
+| 3 | `a291a8ae…` | Gave the figures in "Before and after": import 2.0 s, `account_map` 1.2 s, budget and variance cancelled |
