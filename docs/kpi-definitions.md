@@ -1,7 +1,8 @@
-# KPI definitions (draft for Peter's sign-off)
+# KPI definitions
 
-**Status: DRAFT, not signed off.** The KPI strip stays on placeholders until Peter signs this off
-(Phase 1, step 1E). Written from Peter's Phase 1 decisions, 24 Nov 2026.
+**Status: signed off by Peter, 25 Nov 2026, for Phase 1 only.** That covers Revenue (month) and Net
+profit, with Cash balance and Runway shown as "—". The two cash-burn points below are **deferred to
+Phase 2**. The KPI strip is live from that date. Written from Peter's Phase 1 decisions, 24 Nov 2026.
 
 ## Rules for every KPI
 
@@ -29,23 +30,23 @@
   with actuals.
 - That month is the latest `actuals_through` across the entity's connections.
 
-## The wiring (built in 1E, not switched on)
+## The wiring (built in 1E, switched on 25 Nov 2026)
 
 - **Built and tested:**
   - the rules above, as `src/engine/kpi.ts`, tested in `kpi.test.ts`;
   - the live strip, as `src/features/kpi/LiveKpiStrip.tsx`, tested in `kpi.test.tsx`.
-- **Switched off:** the shell still shows the placeholder strip ("—" everywhere), because
-  `KPI_STRIP_LIVE` in `src/app/shell/kpiSwitch.ts` is `false`. A test checks that it stays off.
-- **To switch it on after your sign-off:** set `KPI_STRIP_LIVE` to `true` and fill in the sign-off line
-  below.
+- **Switched on** after Peter's sign-off: `KPI_STRIP_LIVE = true` in `src/app/shell/kpiSwitch.ts`. A
+  test checks the switch, and the shell's tests check that a page shows the live strip.
 - **If the strip's figures fail to load,** every tile shows "—" and says why; it never shows a zero.
-  Its timeout wording is still to be confirmed (`docs/ui-rules.md` §6).
+  Its timeout wording is still a proposal for Peter to confirm (`docs/ui-rules.md` §6).
 
-## Open points for Peter
+## Deferred to Phase 2 (Peter, 25 Nov 2026)
 
 1. **Average monthly cash burn.** Proposed: the average fall in the cash balance over the last three
-   complete months. The month-by-month change is used, so one-off movements count. This needs
-   confirming before cash data arrives (Phase 2).
+   complete months. The month-by-month change is used, so one-off movements count. **Deferred:** to
+   be decided with the balance-sheet data in Phase 2 (see `docs/reports/P1-FINAL.md`, Phase 2 plan).
 2. **"Not burning cash".** Proposed: the three-month average change in cash is zero or positive.
+   **Deferred** to Phase 2.
 
-Signed off: ______ (Peter), date ______
+Signed off: **Peter, 25 Nov 2026, for Phase 1 only.** That covers Revenue (month) and Net profit, with
+Cash balance and Runway as "—". Points 1 and 2 above are deferred to Phase 2.

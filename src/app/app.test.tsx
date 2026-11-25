@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // The app's routes and fail-closed behaviour, with Clerk and the entity API replaced by fakes.
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -108,13 +108,23 @@ describe('entities', () => {
     at('/');
     expect(await screen.findByRole('button', { name: 'Create entity' })).toBeTruthy();
   });
-  it('the shell shows the entity chip, tasks and KPI skeleton with no figures', async () => {
+  it('the shell shows the entity chip, tasks and the live KPI strip (no figures when it cannot load)', async () => {
     at(`/e/${A.id}/plan`);
     await screen.findByText('Drivers');
     expect(screen.getByText('Acme Ltd')).toBeTruthy();
     expect(screen.getByText('IE · EUR')).toBeTruthy();
     for (const t of ['Plan', 'Compare', 'Cash', 'Report', 'Connect']) expect(screen.getAllByRole('link', { name: new RegExp(t) }).length).toBeGreaterThan(0);
-    expect(screen.getAllByText('—')).toHaveLength(4);
+    // The live strip (signed off 25 Nov 2026), not the placeholder. With no database in this test it
+    // fails closed: "—" in every tile and the reason, never a zero.
+    const strip = screen.getByRole('region', { name: 'Key figures' });
+    expect(screen.queryByRole('region', { name: 'Key figures (no data yet)' })).toBeNull();
+    expect(await within(strip).findAllByText(/Could not load the figures/)).toHaveLength(4);
+    expect(within(strip).getAllByText('—')).toHaveLength(4);
+  });
+  it('the KPI strip is not on Connect (setup pages have no strip)', async () => {
+    at(`/e/${A.id}/connect`);
+    await screen.findByText('CSV import');
+    expect(screen.queryByRole('region', { name: /Key figures/ })).toBeNull();
   });
   it('switching entity keeps the page', async () => {
     at(`/e/${A.id}/cash`);

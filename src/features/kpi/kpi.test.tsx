@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-// The KPI strip's wiring (docs/kpi-definitions.md). It is not switched on: the shell shows the
-// placeholder strip until Peter signs the definitions off (src/app/shell/kpiSwitch.ts).
+// The KPI strip (docs/kpi-definitions.md), switched on after Peter's sign-off on 25 Nov 2026
+// (src/app/shell/kpiSwitch.ts).
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { KPI_STRIP_LIVE } from '../../app/shell/kpiSwitch';
@@ -29,8 +29,8 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('KPI strip', () => {
-  it('is not switched on until the definitions are signed off', () => {
-    expect(KPI_STRIP_LIVE).toBe(false);
+  it('is switched on (signed off by Peter, 25 Nov 2026, Phase 1 only)', () => {
+    expect(KPI_STRIP_LIVE).toBe(true);
   });
   it('Revenue (month) and Net profit for the latest month, each with "actuals through"', async () => {
     show();
