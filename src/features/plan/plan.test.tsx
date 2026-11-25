@@ -20,7 +20,7 @@ const planApi = {
   listBudgets: vi.fn(async () => versions),
   budgetLines: vi.fn(async () => lines),
   baseScenario: vi.fn(async () => 's1'),
-  linesToReplace: vi.fn(async () => ({ total: 108, manual: 3 })),
+  linesToReplace: vi.fn(async () => ({ total: 96, manual: 3 })),
   createBudget: vi.fn(async () => V1.id),
   setLocked: vi.fn(async (_id: string, locked: boolean) => ({ ...V1, locked_at: locked ? '2026-01-07T10:00:00Z' : null })),
   editLine: vi.fn(async () => undefined),
@@ -35,7 +35,7 @@ const { PlanPage } = await import('./PlanPage');
 function show(role: CurrentEntity['role'] = 'editor') {
   return render(<MemoryRouter><EntityContext.Provider value={{ entity: ENTITY, role, entities: [ENTITY] }}><PlanPage /></EntityContext.Provider></MemoryRouter>);
 }
-/** 108 lines: 9 budgetable lines x 12 months of 2026, stored sign; revenue 1050/month. */
+/** 96 lines: the 8 budgetable lines x 12 months of 2026, stored sign; revenue 1050/month. */
 function budget2026(manual: string[] = []): BudgetLine[] {
   const out: BudgetLine[] = [];
   for (let k = 0; k < 12; k++) {
@@ -129,7 +129,7 @@ describe('rebuilding an existing budget (ui-rules 4)', () => {
   it('says how many lines will be replaced and how many were edited by hand, before anything changes', async () => {
     const dialog = await openRebuild();
     expect(planApi.linesToReplace).toHaveBeenCalledWith(V1.id, '2026-01-01', '2026-12-01');
-    expect(dialog.textContent).toContain('Rebuilding replaces 108 lines in Jan 2026 to Dec 2026, including 3 lines edited by hand.');
+    expect(dialog.textContent).toContain('Rebuilding replaces 96 lines in Jan 2026 to Dec 2026, including 3 lines edited by hand.');
     expect(planApi.createBudget).not.toHaveBeenCalled();
   });
   it('Cancel changes nothing', async () => {
@@ -140,7 +140,7 @@ describe('rebuilding an existing budget (ui-rules 4)', () => {
   });
   it('only the explicit yes rebuilds, into the same version', async () => {
     await openRebuild();
-    fireEvent.click(screen.getByRole('button', { name: 'Replace 108 lines' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Replace 96 lines' }));
     await waitFor(() => expect(planApi.createBudget).toHaveBeenCalledWith(expect.objectContaining({ versionId: V1.id, name: null, budgetFrom: '2026-01-01' })));
   });
   it('a locked version cannot be rebuilt: the screen says to unlock first', async () => {
@@ -153,7 +153,7 @@ describe('rebuilding an existing budget (ui-rules 4)', () => {
   it('if the database says the version is locked (PT423), the screen says to unlock first', async () => {
     planApi.createBudget.mockImplementationOnce(async () => { throw Object.assign(new Error('build the budget: This version is locked. Unlock it first.'), { code: 'PT423' }); });
     await openRebuild();
-    fireEvent.click(screen.getByRole('button', { name: 'Replace 108 lines' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Replace 96 lines' }));
     expect(await screen.findByText('This version is locked. Unlock it first.')).toBeTruthy();
   });
 });

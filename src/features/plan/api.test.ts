@@ -34,8 +34,8 @@ describe('plan data layer', () => {
     expect(calls[0]?.ops).toContainEqual(['eq', 'id', 'l1']);
   });
   it('the rebuild counts are exact counts of the base scenario in the 12 months, all and edited by hand', async () => {
-    results.push({ data: [{ id: 's1' }], error: null }, { count: 108, error: null }, { count: 3, error: null });
-    expect(await api.linesToReplace('v1', '2026-01-01', '2026-12-01')).toEqual({ total: 108, manual: 3 });
+    results.push({ data: [{ id: 's1' }], error: null }, { count: 96, error: null }, { count: 3, error: null });
+    expect(await api.linesToReplace('v1', '2026-01-01', '2026-12-01')).toEqual({ total: 96, manual: 3 });
     const counts = calls.filter(c => c.table === 'plan_lines');
     expect(counts).toHaveLength(2);
     for (const c of counts) {

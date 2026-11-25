@@ -4,6 +4,13 @@
 made**: 1D and 1E use the functions applied in 0003. Gate 1 and 1F are not started. The KPI strip is
 wired but **not switched on**, pending your sign-off of `docs/kpi-definitions.md`.
 
+> **Correction (25 Nov 2026, after the walk-through):** this report first said a rebuild replaces
+> **108** lines. The right number is **96**: 8 lines take a budget (Revenue, Cost of sales, Payroll,
+> Marketing, Rent and premises, Other operating costs, Interest, Tax), and 8 × 12 months is 96. The
+> screen was always right, because it counts the lines in the database. The mistake was only in this
+> report's text and in a made-up count in one test, and both are now corrected. Each budget in
+> Walkthrough Test 1 has 96 lines.
+
 ## What changed
 
 | Item | Result |
@@ -51,9 +58,9 @@ wired but **not switched on**, pending your sign-off of `docs/kpi-definitions.md
      "You can unlock it" for an owner.
 5. **Rebuild from actuals….**
    - Opens the same form for this budget.
-   - **Rebuild…** first counts the lines in the 12 budget months and asks: "**Rebuilding replaces 108
+   - **Rebuild…** first counts the lines in the 12 budget months and asks: "**Rebuilding replaces 96
      lines in Jan 2026 to Dec 2026, including 1 line edited by hand.** This cannot be undone."
-   - **Replace 108 lines** or **Cancel**. Cancel changes nothing.
+   - **Replace 96 lines** or **Cancel**. Cancel changes nothing.
    - For a locked budget the form says "**This version is locked. Unlock it first.**" and **Rebuild…**
      is greyed out. If the database refuses anyway (PT423), the screen says the same.
 
@@ -181,8 +188,22 @@ page never scrolls sideways (page width 384 px plus the scrollbar).
 
 ## Preview
 
-I merged phase-1 into `preview` again and pushed it, as for 1C (option A); see the chat for the commit
-and the check that the new build is served.
+- **Merge:** I merged phase-1 (`79b7801`) into `preview` as `f194565` and pushed it, as for 1C
+  (option A). The merged files are identical to phase-1.
+- **Build:** Vercel reported "Deployment has completed".
+- **What `klaro-preview.ledgrly.ie` serves:** bundle `index-ByUCANF3.js`, with the live Clerk key, no
+  development key, and the Budgets, Compare and rebuild-warning text.
+- **CI:** GitHub Actions passed on draft PR #1 for `79b7801`
+  (https://github.com/peterfitz90/klaro/actions/runs/45595449744).
+- **A read-only look at "test 1" on the preview** (no clicks that save):
+  - **Plan:** "Actuals through Dec 2025", "No budgets yet".
+  - **Compare:** loads the real figures for Dec 2025, with no alerts:
+    - Marketing €805.14, the one account mapped there;
+    - Operating and Net profit -€805.14;
+    - Unmapped -€133,396.26, from the 1,249 unmapped accounts;
+    - "Not in the P&L (excluded): 3 accounts, net total €0.00". Those accounts have no actuals left
+      in that entity.
+  - **The KPI strip** still shows "—" in all four tiles.
 
 ## Walk-through for you (on the preview)
 
@@ -210,10 +231,10 @@ deleted.
 4. **A hand edit.** In **Revenue, Mar 2026** type `50,000` and click **Save 1 change**. Expect
    "Saved 1 change." and a ✎ on that cell. Net profit for March changes.
 5. **Rebuild warning (§4).**
-   1. Click **Rebuild from actuals…**, then **Rebuild…**. Expect: "**Rebuilding replaces 108 lines in Jan
+   1. Click **Rebuild from actuals…**, then **Rebuild…**. Expect: "**Rebuilding replaces 96 lines in Jan
       2026 to Dec 2026, including 1 line edited by hand.** This cannot be undone."
    2. Click **Cancel**. Nothing changes: the ✎ is still there.
-   3. Click **Rebuild…** again, then **Replace 108 lines**. The budget is rebuilt and the ✎ is gone.
+   3. Click **Rebuild…** again, then **Replace 96 lines**. The budget is rebuilt and the ✎ is gone.
 6. **Lock, then try to rebuild.**
    1. Click **Lock this budget**. Expect the "Locked" badge, no editable cells, and (as the owner) an
       **Unlock** button.
