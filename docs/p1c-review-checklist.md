@@ -35,6 +35,27 @@ every item below done and recorded in `docs/reports/P1-C.md`.
   - the `sync_runs` row it wrote.
 - **If the gateway refuses or times out**, record the exact status and message, and stop. The fix
   would be to lower the per-import limits or split the upload, and that is your decision.
+- Both files are in `C:\Users\peter\Downloads` (made 25 Nov 2026):
+  - `large-actuals-16000.csv`;
+  - `large-actuals-1250-accounts-12-months.csv` (15,000 rows, 3,359,791 bytes;
+    `--accounts 1250 --months 12 --name-length 200`).
+
+## Paging past the 1,000-row cap against the real API (required, recorded result)
+
+- Import `large-actuals-1250-accounts-12-months.csv` into a **new** entity, `Walkthrough Test 2`.
+- Open **Map accounts**. The status must read **"Mapping not complete: 1,250 of 1,250 accounts
+  unmapped"**.
+- The API returns at most 1,000 rows per request, so 1,250 proves the screen pages past the cap against
+  the real API, not only the fake one in the tests.
+
+| Recorded result | Value |
+|---|---|
+| Entity | Walkthrough Test 2 |
+| Import: rows, file size, time, `import_actuals` HTTP status | |
+| `sync_runs` row (read by Claude afterwards) | |
+| Map accounts status text | |
+| `account_map` requests in the Network tab (ranges and status codes) | |
+| Accounts in the database for that entity (read by Claude, read-only) | |
 
 ## Also confirm
 

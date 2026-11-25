@@ -3,7 +3,7 @@ account_code,account_name,month,amount
 4100,Sales - services,2025-01,-15300.61
 5000,Purchases,2025-13,16604.45
 5100,Subcontractors,2025-01,4552.73
-6000,Wages and salaries,2025-01,€120.00
+6000,Wages and salaries,2025-01,$120.00
 6010,Employer's PRSI,2025-01,2384.43
 6100,Advertising,2025-01,2010.63
 ,Rent,2025-01,3250.00

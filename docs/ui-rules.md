@@ -51,6 +51,16 @@ in the result summary.
      before import.
    - The default is no: the file is already trial-balance style, as the template says.
 
+3. **Amount formats** (Peter, 25 Nov 2026):
+   - **Accepted:** `-1200.50`, `1,200.50`, a € or £ sign before the number (removed), and brackets as
+     a negative: `(1,200.50)` is -1,200.50.
+   - **Preview warning:** how many amounts were converted, and how.
+   - **Refused (a problem on that line):**
+     - `$` and every other sign, or a sign after the number;
+     - a € or £ that is not the entity's currency;
+     - brackets with a minus sign;
+     - anything else ambiguous (`1.200,50`, `1 000`, more than two decimals).
+
 The conversion code lives in `src/engine`, as pure functions with tests. The server checks the rows
 as always and is never told which option was chosen.
 

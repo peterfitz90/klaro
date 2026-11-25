@@ -137,13 +137,25 @@ describe('a file with mistakes (fails closed)', () => {
     const lines = within(table).getAllByRole('row').slice(1).map(r => r.querySelector('td')?.textContent);
     expect(lines).toEqual(['4', '6', '9', '11', '21']);
     expect(table.textContent).toContain('"2025-13" is not a real date.');
-    expect(table.textContent).toContain('"€120.00" is not an amount');
+    expect(table.textContent).toContain('"$120.00" is not an amount');
     expect(table.textContent).toContain('The account code is empty.');
     expect(table.textContent).toContain('already has a figure for 2025-01 (line 10)');
     expect(table.textContent).toContain('"1.234" is not an amount');
     expect(screen.getByText(/5 problems found. Nothing can be imported/)).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Import' }) as HTMLButtonElement).disabled).toBe(true);
     expect(api.importActuals).not.toHaveBeenCalled();
+  });
+  it('€ signs and brackets are converted with a warning that counts them; $ stays a problem', async () => {
+    show();
+    await toPreview('account_code,month,amount\n4000,2025-01,"(1,200.50)"\n5000,2025-01,€300\n6000,2025-01,-5\n');
+    expect(screen.getByText(/^2 amounts were converted: 1 had a € sign, which was removed; 1 in brackets were read as negative/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Import 3 rows' }));
+    await screen.findByText(/is imported/);
+    expect((api.importActuals.mock.calls[0]?.[2] ?? []).map(r => r.amount)).toEqual(['-1200.50', '300.00', '-5.00']);
+    cleanup();
+    show();
+    await toPreview('account_code,month,amount\n4000,2025-01,$300\n');
+    expect(screen.getByRole('table', { name: 'Problems in the file' }).textContent).toContain('"$300" is not an amount');
   });
   it('refuses a file over 5 MB before reading it', async () => {
     show();

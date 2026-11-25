@@ -11,7 +11,7 @@
 // - At most 20,000 rows and 5 MB per import.
 import type { CsvRow } from './csv';
 import { isBlankRow } from './csv';
-import { MAX_CENTS, toAmount } from './money';
+import { MAX_CENTS, toAmount, type Currency } from './money';
 import { addMonths, fiscalYearStart, isPeriod, period, type Period } from './period';
 
 export const IMPORT_LIMITS = { maxRows: 20_000, maxBytes: 5 * 1024 * 1024 } as const;
@@ -93,19 +93,58 @@ export function parseMonth(text: string, currentMonth: Period): { period: Period
   return { period: p };
 }
 
+export interface Amount {
+  cents: bigint;
+  /** A € or £ sign was removed. */
+  signRemoved: boolean;
+  /** Brackets were read as a negative, as in (1,200.50). */
+  bracketed: boolean;
+}
+
+const SYMBOL: Record<Currency, string> = { EUR: '€', GBP: '£' };
+const NOT_AN_AMOUNT = 'Write it like -1200.50 or (1,200.50): at most two decimals; a € or £ sign is allowed, no other currency sign.';
+
 /**
- * An amount in cents: "-1200.50", "1,200.50" or "1200". At most two decimals and 12 digits before
- * the point; a negative is written with a minus sign. No currency signs or brackets.
+ * An amount in cents. Accepted (Peter, 25 Nov 2026): "-1200.50", "1,200.50", "1200"; a € or £ sign
+ * before the number ("€1,200.50", "-£80", "€-80", "£ 80"), which is removed; brackets as a negative
+ * ("(1,200.50)", "(€1,200.50)", "€(1,200.50)"). At most two decimals and 12 digits before the point.
+ * Refused: any other sign ($ and the rest), a sign after the number, brackets with a minus sign, two
+ * signs, and a sign that is not the entity's currency (a £ amount in a euro entity is not a euro
+ * amount). With no currency given, either sign is accepted.
  */
-export function parseAmount(text: string): { cents: bigint } | { problem: string } {
-  const t = text.trim();
-  if (t === '') return { problem: 'the amount is empty.' };
-  const m = /^(-)?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?$/.exec(t);
-  if (!m) return { problem: `"${clip(t)}" is not an amount. Write it like -1200.50: at most two decimals, a minus sign for a negative, no currency sign.` };
-  const whole = (m[2] ?? '').replace(/,/g, '');
+export function parseAmount(text: string, currency?: Currency): Amount | { problem: string } {
+  const original = text.trim();
+  if (original === '') return { problem: 'the amount is empty.' };
+  const bad = { problem: `"${clip(original)}" is not an amount. ${NOT_AN_AMOUNT}` };
+  let t = original;
+  let sign: string | null = null;
+  let bracketed = false;
+  let negative = false;
+  const takeSign = () => {
+    const c = t.charAt(0);
+    if (c !== '€' && c !== '£') return true;
+    if (sign) return false;
+    sign = c;
+    t = t.slice(1);
+    if (t.startsWith(' ')) t = t.slice(1);
+    return true;
+  };
+  if (!takeSign()) return bad;
+  if (t.startsWith('(') && t.endsWith(')')) { bracketed = true; t = t.slice(1, -1); }
+  if (t.includes('(') || t.includes(')')) return bad;
+  if (t.startsWith('-')) { negative = true; t = t.slice(1); }
+  if (!takeSign()) return bad;
+  if (t.startsWith('-')) { if (negative) return bad; negative = true; t = t.slice(1); }
+  if (bracketed && negative) return { problem: `"${clip(original)}" has both brackets and a minus sign, so it is not clear whether it is negative.` };
+  const m = /^(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?$/.exec(t);
+  if (!m) return bad;
+  if (sign && currency && sign !== SYMBOL[currency]) {
+    return { problem: `"${clip(original)}" is in ${sign === '€' ? 'euro' : 'sterling'}, but this entity's currency is ${currency}.` };
+  }
+  const whole = (m[1] ?? '').replace(/,/g, '');
   if (whole.replace(/^0+(?=\d)/, '').length > 12) return { problem: 'the amount has more than 12 digits before the point.' };
-  const cents = BigInt(whole) * 100n + BigInt((m[3] ?? '').padEnd(2, '0'));
-  return { cents: m[1] ? -cents : cents };
+  const cents = BigInt(whole) * 100n + BigInt((m[2] ?? '').padEnd(2, '0'));
+  return { cents: negative || bracketed ? -cents : cents, signRemoved: sign !== null, bracketed };
 }
 
 /** True if the text has a control character (U+0000 to U+001F, or U+007F). */
@@ -123,6 +162,8 @@ export interface ImportOptions {
   fiscalYearStartMonth: number;
   /** This calendar month, the latest month that can be imported. */
   currentMonth: Period;
+  /** The entity's currency: a € or £ sign on an amount must match it. */
+  currency: Currency;
 }
 
 /** A problem with a line of the file (line 0 means the file as a whole). */
@@ -178,6 +219,7 @@ export function prepareImport(rows: readonly CsvRow[], map: ColumnMap, opts: Imp
   const cell = (r: CsvRow, f: Field) => { const i = map[f]; return i === null ? '' : r.cells[i] ?? ''; };
   const parsed: Parsed[] = [];
   const seen = new Map<string, number>();
+  let signsRemoved = 0, bracketsRead = 0, converted = 0;
   const lastColumn = Math.max(...FIELDS.map(f => map[f] ?? -1));
   for (const r of data) {
     if (r.cells.length <= lastColumn) {
@@ -193,7 +235,7 @@ export function prepareImport(rows: readonly CsvRow[], map: ColumnMap, opts: Imp
     else if (hasControl(rawName)) lineProblems.push('the account name has a hidden control character.');
     const mo = parseMonth(cell(r, 'month'), opts.currentMonth);
     if ('problem' in mo) lineProblems.push(mo.problem);
-    const am = parseAmount(cell(r, 'amount'));
+    const am = parseAmount(cell(r, 'amount'), opts.currency);
     if ('problem' in am) lineProblems.push(am.problem);
     if (lineProblems.length) { for (const m of lineProblems) problems.push({ line: r.line, message: m }); continue; }
     const month = (mo as { period: Period }).period;
@@ -204,7 +246,19 @@ export function prepareImport(rows: readonly CsvRow[], map: ColumnMap, opts: Imp
       continue;
     }
     seen.set(key, r.line);
-    parsed.push({ line: r.line, code, name: rawName || null, month, cents: (am as { cents: bigint }).cents });
+    const amount = am as Amount;
+    if (amount.signRemoved) signsRemoved++;
+    if (amount.bracketed) bracketsRead++;
+    if (amount.signRemoved || amount.bracketed) converted++;
+    parsed.push({ line: r.line, code, name: rawName || null, month, cents: amount.cents });
+  }
+
+  // Amounts written with a currency sign or brackets were converted: say how many.
+  if (signsRemoved || bracketsRead) {
+    const parts: string[] = [];
+    if (signsRemoved) parts.push(`${signsRemoved.toLocaleString('en-IE')} had a ${SYMBOL[opts.currency]} sign, which was removed`);
+    if (bracketsRead) parts.push(`${bracketsRead.toLocaleString('en-IE')} in brackets were read as negative, so (1,200.50) is -1,200.50`);
+    warnings.push(`${converted.toLocaleString('en-IE')} amount${converted === 1 ? ' was' : 's were'} converted: ${parts.join('; ')}. Check the debits and credits below before importing.`);
   }
 
   // Sanity check on what the figures look like, before any conversion (ui-rules 3).

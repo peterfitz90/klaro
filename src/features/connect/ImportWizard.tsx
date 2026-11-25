@@ -94,7 +94,7 @@ export function ImportWizard(props: ImportWizardProps) {
   function check(file: FileData, map: ColumnMap, answers: Answers) {
     const problems = columnMapProblems(map, file.headers.length);
     if (problems.length) { setStep({ name: 'columns', file, map, answers, error: problems.join(' ') }); return; }
-    const prepared = prepareImport(file.rows, map, { ...answers, fiscalYearStartMonth: props.fiscalYearStartMonth, currentMonth });
+    const prepared = prepareImport(file.rows, map, { ...answers, fiscalYearStartMonth: props.fiscalYearStartMonth, currentMonth, currency: props.currency });
     setStep({ name: 'preview', file, map, answers, prepared });
   }
 
@@ -122,7 +122,8 @@ export function ImportWizard(props: ImportWizardProps) {
       <div>
         <p className="f-hint" style={{ marginBottom: 10 }}>
           A CSV file with one row per account per month: account code, account name (optional), month (2025-01, or a date such
-          as 31/01/2025) and amount. Debits positive, credits negative, unless you say otherwise on the next step. At most
+          as 31/01/2025, day first) and amount. Amounts like -1200.50, 1,200.50, {props.currency === 'GBP' ? '£' : '€'}1,200.50, or (1,200.50) for a
+          negative; no other currency sign. Debits positive, credits negative, unless you say otherwise on the next step. At most
           20,000 rows and 5 MB. Importing a month replaces everything already imported for that month.
         </p>
         <div className="row-gap" style={{ marginBottom: 12 }}>

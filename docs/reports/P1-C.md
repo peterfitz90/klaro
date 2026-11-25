@@ -11,8 +11,19 @@ are screens only, on top of 0003 (applied 25 Nov). 1D and 1E are not started.
 | 1C: account mapping | Connect › Map accounts: a plan line for every account, unmapped first, "Mapping complete", the excluded count and total, suggestions you apply yourself |
 | Your §6 wording | Mapping and budget timeouts: "This took too long. Nothing was changed. Try again, and if it keeps happening, tell us." (`docs/ui-rules.md`) |
 | Sample files | `public/samples/sample-actuals.csv` (193 rows, 17 made-up accounts, Jan–Dec 2025) and `sample-actuals-broken.csv` (the same with 5 deliberate mistakes). Both download from the import screen |
-| Large-file generator | `node scripts/make-actuals-csv.mjs large <folder>` writes 16,000 rows, 3,279,781 bytes, for the gateway test |
-| Checks | Typecheck, lint, **180 tests** and the build pass locally. GitHub Actions only runs on a pull request (see the draft PR link in the chat) |
+| Large-file generator | `node scripts/make-actuals-csv.mjs large <folder> [--accounts N] [--months N] [--name-length N]`. Both files are in `C:\Users\peter\Downloads` (table below) |
+| Amount formats (your 25 Nov change) | € or £ signs removed, brackets read as negative, with a preview warning that counts them; `$`, other signs, a sign in the wrong currency and anything ambiguous stay problems (`docs/ui-rules.md` §3.3) |
+| Checks | Typecheck, lint, **188 tests** and the build pass locally. GitHub Actions only runs on a pull request (see the draft PR link in the chat) |
+
+**The two large files** (made-up data; both under the 5 MB limit as the database measures rows):
+
+| File in `C:\Users\peter\Downloads` | Accounts × months | Rows | File size | Size as the database measures it |
+|---|---|---|---|---|
+| `large-actuals-16000.csv` | 800 × 20 (Jan 2025–Aug 2026) | 16,000 | 3,279,781 bytes (3.13 MiB) | 4,351,741 bytes |
+| `large-actuals-1250-accounts-12-months.csv` | 1,250 × 12 (Jan–Dec 2025) | 15,000 | 3,359,791 bytes (3.20 MiB) | 4,364,751 bytes |
+
+The first is the same file as before, byte for byte (sha-256 `13603bb4ae02ca0f…`). The second is made with
+`--accounts 1250 --months 12 --name-length 200`.
 
 ## The screens, in plain language
 
@@ -108,14 +119,17 @@ remaining rules belong to 1D and 1E and get their tests there:
 | §6 Mapping timeout (save and load): your wording; choices kept; no figures | `map.test.tsx` |
 | Fail closed: no partial success shown as success | `import.test.tsx`: refused row shows "Nothing was imported" and the file line; unknown outcome shows "could not confirm"; neither shows "imported" |
 | Limits: 20,000 rows, 5 MB (file and rows) | `actualsImport.test.ts` (20,001 rows; rows over 5 MB as the database measures them); `import.test.tsx` (a 5 MB + 1 byte file) |
-| Row checks: code, name, month (YYYY-MM or a date), amount, duplicates | `actualsImport.test.ts`; `import.test.tsx` with the broken sample: lines 4, 6, 9, 11 and 21, each with its reason |
+| Row checks: code, name, month (YYYY-MM or a date), amount, duplicates | `actualsImport.test.ts`; `import.test.tsx` with the broken sample: still 5 problems, on lines 4, 6, 9, 11 and 21, each with its reason (line 6 is now `$120.00`, which stays refused) |
+| Amounts: € and £ removed, brackets negative, warning with the count (§3.3) | `actualsImport.test.ts`: every accepted form; the warning's exact text and count (an amount with both a sign and brackets counts once); `import.test.tsx`: the warning on screen and the rows sent |
+| Amounts: `$`, other signs, wrong currency, brackets with a minus, ambiguous forms stay refused | `actualsImport.test.ts` (26 refused forms, the wrong-currency and bracket-and-minus messages); `import.test.tsx` (`$300` is a problem) |
+| The paging-test file passes every check, under 5 MB | `actualsImport.test.ts` (1,250 accounts × 12 months with 200-character names) |
 | Size as the server measures it | `actualsImport.test.ts`: 157 bytes, the same as `octet_length(jsonb::text)` measured read-only on the project |
 | Suggestions never applied silently | `map.test.tsx`: shown but not set; Use fills in but saves nothing; Save sends exactly the change; "Use all" fills in only accounts that have one |
 | Only mappable lines offered | `map.test.tsx` (the drop-down's exact list) |
 | Roles | `import.test.tsx` (owner adds, editor cannot, viewer cannot import); `map.test.tsx` (viewer read-only) |
 | Errors are not "empty" | `import.test.tsx` (failed connection load is an error, not "no connection") |
 
-**The tests can fail.** I broke five rules one at a time and ran the tests each time. Each break made
+**The tests can fail.** I broke seven rules one at a time and ran the tests each time. Each break made
 tests fail, and the code was put back afterwards:
 
 | Rule broken | Tests that failed |
@@ -125,6 +139,8 @@ tests fail, and the code was put back afterwards:
 | Paging that stops after one page | 5 |
 | Different timeout wording | 1 |
 | A suggestion applied without a click | 3 |
+| Brackets not read as negative (25 Nov change) | 3 |
+| A € or £ accepted in the wrong currency (25 Nov change) | 2 |
 
 **Seen on screen.** I used the demo build (made-up data; it never builds for deploy) at desktop width
 and at 390 px. Covered:
@@ -139,9 +155,20 @@ block per account. The real walk-through below is still needed.
 
 1. **Dates are read day first:** 01/02/2025 is 1 February. A US-style date such as 12/31/2025 is
    refused, not guessed.
-2. **Amounts:**
-   - Allowed: a minus sign and thousands commas.
-   - Refused, with the reason: brackets for negatives, currency signs, more than two decimals.
+2. **Amounts** (changed on your instruction, 25 Nov):
+   - **Allowed:**
+     - a minus sign and thousands commas;
+     - a € or £ before the number, which is removed. The sign may come before or after the minus,
+       with one space after the sign;
+     - brackets as a negative: `(1,200.50)`, `(€1,200.50)`, `€(1,200.50)`.
+   - **My own addition:** a € in a sterling entity, or a £ in a euro entity, is a problem. Stripping
+     it would silently treat pounds as euros.
+   - **Refused:**
+     - `$` and every other sign;
+     - a sign after the number;
+     - brackets with a minus sign;
+     - European decimal commas (`1.200,50`) and spaces as thousands separators;
+     - more than two decimals.
 3. **Year-to-date files** need a row for every account in every month of the year, including 0.00
    where there was no balance. A missing row is an error that says to add a 0.00 row. That follows
    "an error, not a guess" strictly. It may be stricter than some exports.
@@ -191,61 +218,81 @@ block per account. The real walk-through below is still needed.
 
 ## Walk-through for you (on the preview)
 
-Use made-up data only. Every step adds rows to the shared Supabase project. Afterwards I will list what
-was created and delete it only when you say so.
+Use made-up data for everything you import. Every import adds rows to the shared Supabase project.
+Afterwards I will list what was created and delete it only when you say so.
 
 1. Open https://klaro-preview.ledgrly.ie and sign in.
 2. **Make sure you are on the new build.** Click **Connect** on the left. You should see two tabs,
-   **Import** and **Map accounts**. If you see three cards saying "Not available yet" and no tabs, the
-   preview is still on the old build. Stop and tell me.
+   **Import** and **Map accounts**. If you see three cards saying "Not available yet" and no tabs, stop
+   and tell me.
 3. Create a test entity:
    - Go to **All entities**, then **Create entity**.
    - Name it `Walkthrough Test 1`, Ireland, EUR, year starting January.
 4. On **Connect › Import**, click **Add a CSV connection**.
-5. **Broken file first:**
-   - Click **Download the sample file**. Download the broken copy too, from the same address with
-     `-broken` added before `.csv`:
-     `https://klaro-preview.ledgrly.ie/samples/sample-actuals-broken.csv`.
-   - **Choose a CSV file** and pick `sample-actuals-broken.csv`. Leave the columns and answers as
-     they are. Click **Check the file**.
-   - Expect "5 problems found" on lines 4, 6, 9, 11 and 21, and a greyed-out **Import** button.
+5. **Your real export: check only, do not import.**
+   - Click **Choose a CSV file** and pick your real export.
+   - Look at the column drop-downs and the two questions, and change them if needed. Then click
+     **Check the file** and nothing else.
+   - The checks run in your browser. Nothing is sent to the database until **Import**, so do not click
+     **Import**.
+   - Tell me, without client or account names:
+     - whether the columns were guessed right;
+     - rows read, rows with problems, accounts, months, debits and credits;
+     - any warnings, such as the converted-amounts count or "these look like year-to-date";
+     - the first few problems, if any.
+   - Then click **Choose another file**.
+6. **The broken sample:**
+   - Download it from `https://klaro-preview.ledgrly.ie/samples/sample-actuals-broken.csv`.
+   - Choose it and click **Check the file**.
+   - Expect "5 problems found" on lines 4 (month 2025-13), 6 (`$120.00`, a sign Klaro refuses),
+     9 (no account code), 11 (the same account and month twice) and 21 (three decimals).
+   - The **Import** button stays greyed out.
    - Click **Download all problems (CSV)** and check that it opens.
-6. **The real sample:**
-   - Click **Choose another file**, pick `sample-actuals.csv` and click **Check the file**.
+7. **The real sample:**
+   - Click **Choose another file**, then **Download the sample file**. Choose it and click
+     **Check the file**.
    - Expect: rows read 193, rows with problems 0, accounts 17, months Jan 2025 to Dec 2025
-     (12 months), and both answers in words.
-7. Click **Import 193 rows**. Expect:
+     (12 months), both answers in words, and no warnings.
+8. Click **Import 193 rows**. Expect:
    - "sample-actuals.csv is imported: 193 rows added, 0 earlier rows removed";
    - Actuals through Dec 2025;
    - one line in Recent imports.
-8. **Import the same file again.** Before you import, the preview should warn that Jan 2025 to
-   Dec 2025 will be replaced completely. Then expect 193 added and 193 earlier rows removed. That is
-   the whole-month replace.
-9. Click **Map the accounts**. Expect:
-   - "Mapping not complete: 17 of 17 accounts unmapped";
-   - the excluded line showing 0 accounts and €0.00.
-10. **Suggestions are not applied on their own.**
-    - Check that nothing changes until you click.
+9. **Import the same file again.** Before you import, the preview warns that Jan 2025 to Dec 2025 will
+   be replaced completely. Then expect 193 added and 193 earlier rows removed: the whole-month replace.
+10. Click **Map the accounts**. Expect:
+    - "Mapping not complete: 17 of 17 accounts unmapped";
+    - the excluded line showing 0 accounts and €0.00.
+11. **Suggestions are not applied on their own.**
     - Click **Use** on one row. "1 unsaved change" appears, and the status still says 17 unmapped.
     - Click **Use all 16 suggestions**, then **Save 16 changes**.
     - Expect "1 of 17 accounts unmapped" (Clearing 7 is listed first) and the excluded line showing
       2 accounts.
-11. Set **Clearing 7** to **Other operating costs** and click **Save 1 change**. Expect
+12. Set **Clearing 7** to **Other operating costs** and click **Save 1 change**. Expect
     "✓ Mapping complete".
-12. **Large file through the real gateway.** This is required by the checklist.
-    - The file is ready at
-      `C:\Users\peter\AppData\Local\Temp\claude\9e65d8e780fd2b84\4d810183-f38b-45c7-9a41-657ebdd9d522\scratchpad\large\large-actuals-16000.csv`.
-      To make it again, run `node scripts/make-actuals-csv.mjs large C:\Users\peter\Downloads` in the
-      klaro folder.
-    - Open the browser's developer tools (F12) on the **Network** tab first.
-    - Import the file. Note the time from clicking Import to the result, and the status of the
-      `import_actuals` request.
-    - Tell me what you saw. I will read the `sync_runs` row and write it into this report.
-    - If the gateway refuses or times out, note the exact message and stop.
-13. **Phone width.** On your phone, or a narrow window, look at the Import and Map accounts tabs. Check
-    that nothing runs off the side and that the drop-downs are usable.
-14. **Optional, roles:** a second signed-in user as viewer would show the read-only screens. This is
+13. **Large file through the real gateway** (checklist).
+    - Back on **Import**, open the browser's developer tools (F12) on the **Network** tab.
+    - Import `C:\Users\peter\Downloads\large-actuals-16000.csv`.
+    - Note the time from clicking Import to the result, and the status of the `import_actuals` request.
+    - If the gateway refuses or times out, note the exact message and stop there.
+14. **Paging past 1,000 accounts against the real API** (checklist, recorded result).
+    - Create a **new** entity, `Walkthrough Test 2` (Ireland, EUR, year starting January).
+    - On **Connect**, add a CSV connection.
+    - Import `C:\Users\peter\Downloads\large-actuals-1250-accounts-12-months.csv` (15,000 rows).
+      Note the time and the `import_actuals` status as in step 13.
+    - Open **Map accounts**. Expect:
+      - "Mapping not complete: 1,250 of 1,250 accounts unmapped";
+      - "Not in the P&L (excluded): 0 accounts, net total €0.00";
+      - "Showing 200 of 1,250" under the list.
+    - The API returns at most 1,000 rows per request, so a count of 1,250 shows the screen read past
+      the cap.
+    - In the Network tab, filter on `account_map`. There should be two requests, one for rows 0–999
+      and one for 1,000–1,999. Note their status codes.
+15. **Phone width.** On your phone or in a narrow window, look at the Import and Map accounts tabs.
+    Check that nothing runs off the side and that the drop-downs are usable.
+16. **Optional, roles:** a second signed-in user as viewer would show the read-only screens. This is
     still known limitation 2 from Phase 0.
 
-Then tell me the results. I will fill in the checklist results here (rows, size, time, HTTP status
-and the `sync_runs` row), and wait for your approval before anything merges.
+Then tell me what you saw. I will:
+- read the two `sync_runs` rows and the account counts read-only;
+- fill in the checklist results here;
+- wait for your approval before anything merges.

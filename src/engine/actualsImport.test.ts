@@ -7,7 +7,7 @@ import { parseCsv } from './csv';
 
 const NOW = '2026-11-01';
 const MAP: ColumnMap = { account_code: 0, account_name: 1, month: 2, amount: 3 };
-const OPTS: ImportOptions = { ytd: false, incomePositive: false, fiscalYearStartMonth: 1, currentMonth: NOW };
+const OPTS: ImportOptions = { ytd: false, incomePositive: false, fiscalYearStartMonth: 1, currentMonth: NOW, currency: 'EUR' };
 const body = (text: string) => parseCsv(text).slice(1);
 const HEAD = 'account_code,account_name,month,amount\n';
 
@@ -39,16 +39,34 @@ describe('single values', () => {
       expect(parseMonth(bad, NOW)).toHaveProperty('problem');
     }
   });
+  const plain = (cents: bigint) => ({ cents, signRemoved: false, bracketed: false });
   it('reads an amount exactly in cents', () => {
-    expect(parseAmount('-1200.50')).toEqual({ cents: -120050n });
-    expect(parseAmount('1,234,567.8')).toEqual({ cents: 123456780n });
-    expect(parseAmount(' 0 ')).toEqual({ cents: 0n });
-    expect(parseAmount('999999999999.99')).toEqual({ cents: 99999999999999n });
+    expect(parseAmount('-1200.50')).toEqual(plain(-120050n));
+    expect(parseAmount('1,234,567.8')).toEqual(plain(123456780n));
+    expect(parseAmount(' 0 ')).toEqual(plain(0n));
+    expect(parseAmount('999999999999.99')).toEqual(plain(99999999999999n));
   });
-  it('refuses an amount with a currency sign, brackets, too many decimals or digits', () => {
-    for (const bad of ['€100', '(100.00)', '1.234', '1,23', '1e5', '', '-', '1000000000000', '12,34,567']) {
-      expect(parseAmount(bad)).toHaveProperty('problem');
+  it('removes a € or £ sign and reads brackets as negative (Peter, 25 Nov 2026)', () => {
+    expect(parseAmount('€1,200.50', 'EUR')).toEqual({ cents: 120050n, signRemoved: true, bracketed: false });
+    expect(parseAmount('-€80', 'EUR')).toEqual({ cents: -8000n, signRemoved: true, bracketed: false });
+    expect(parseAmount('€-80', 'EUR')).toEqual({ cents: -8000n, signRemoved: true, bracketed: false });
+    expect(parseAmount('€ 80.5', 'EUR')).toEqual({ cents: 8050n, signRemoved: true, bracketed: false });
+    expect(parseAmount('£80', 'GBP')).toEqual({ cents: 8000n, signRemoved: true, bracketed: false });
+    expect(parseAmount('(1,200.50)', 'EUR')).toEqual({ cents: -120050n, signRemoved: false, bracketed: true });
+    expect(parseAmount('(€1,200.50)', 'EUR')).toEqual({ cents: -120050n, signRemoved: true, bracketed: true });
+    expect(parseAmount('€(1,200.50)', 'EUR')).toEqual({ cents: -120050n, signRemoved: true, bracketed: true });
+    expect(parseAmount('(0.00)', 'EUR')).toEqual({ cents: 0n, signRemoved: false, bracketed: true });
+  });
+  it('refuses other signs, ambiguous forms, too many decimals or digits', () => {
+    for (const bad of ['$100', 'US$100', '100€', '100 €', 'EUR 100', '¥100', '€€100', '€£100', '(-100)', '-(100)', '((100))', '(100', '100)',
+      '€  100', '1.234', '1,23', '1e5', '', '-', '€', '()', '1000000000000', '12,34,567', '1 000', '1.200,50', '--100']) {
+      expect(parseAmount(bad, 'EUR'), bad).toHaveProperty('problem');
     }
+    expect(parseAmount('(-100)', 'EUR')).toEqual({ problem: '"(-100)" has both brackets and a minus sign, so it is not clear whether it is negative.' });
+  });
+  it('refuses a sign that is not the entity’s currency', () => {
+    expect(parseAmount('£100', 'EUR')).toEqual({ problem: '"£100" is in sterling, but this entity\'s currency is EUR.' });
+    expect(parseAmount('(€100)', 'GBP')).toEqual({ problem: '"(€100)" is in euro, but this entity\'s currency is GBP.' });
   });
 });
 
@@ -102,9 +120,41 @@ describe('prepareImport', () => {
     expect(p.payload).toEqual([]);
   });
 
+  it('a file shaped like the paging test (1,250 accounts x 12 months, 200-character names) passes, under 5 MB', () => {
+    const name = 'N'.repeat(186);
+    const lines = [];
+    for (let m = 1; m <= 12; m++) for (let a = 1; a <= 1250; a++) lines.push(`${10000 + a},Account ${10000 + a} ${name},2025-${String(m).padStart(2, '0')},-1100.25`);
+    const p = prepareImport(body(HEAD + lines.join('\n')), MAP, OPTS);
+    expect(p.problems).toEqual([]);
+    expect(p.accounts).toBe(1250);
+    expect(p.payload).toHaveLength(15_000);
+    expect(p.payloadBytes).toBeLessThan(IMPORT_LIMITS.maxBytes);
+  });
+
   it('flips every sign when income is positive in the file (ui-rules 3.2)', () => {
     const p = prepareImport(body(HEAD + '4000,Sales,2025-01,1000\n5000,Rent,2025-01,-250\n'), MAP, { ...OPTS, incomePositive: true });
     expect(p.payload.map(r => r.amount)).toEqual(['-1000.00', '250.00']);
+  });
+});
+
+describe('amounts with a currency sign or brackets', () => {
+  it('converts them and says how many were converted', () => {
+    const p = prepareImport(body(HEAD + '4000,Sales,2025-01,"(1,200.50)"\n5000,Rent,2025-01,€300\n6000,Fees,2025-01,(€20.00)\n7000,Other,2025-01,5\n'), MAP, OPTS);
+    expect(p.problems).toEqual([]);
+    expect(p.payload.map(r => r.amount)).toEqual(['-1200.50', '300.00', '-20.00', '5.00']);
+    expect(p.warnings).toEqual(['3 amounts were converted: 2 had a € sign, which was removed; 2 in brackets were read as negative, so (1,200.50) is -1,200.50. Check the debits and credits below before importing.']);
+  });
+  it('one converted amount is counted as one', () => {
+    const p = prepareImport(body(HEAD + '4000,Sales,2025-01,(10)\n'), MAP, OPTS);
+    expect(p.warnings[0]).toBe('1 amount was converted: 1 in brackets were read as negative, so (1,200.50) is -1,200.50. Check the debits and credits below before importing.');
+  });
+  it('no warning when nothing was converted', () => {
+    expect(prepareImport(body(HEAD + '4000,Sales,2025-01,-10\n'), MAP, OPTS).warnings).toEqual([]);
+  });
+  it('$ and a sign in the wrong currency stay problems', () => {
+    const p = prepareImport(body(HEAD + '4000,Sales,2025-01,$10\n5000,Rent,2025-01,£10\n'), MAP, OPTS);
+    expect(p.problems.map(x => x.line)).toEqual([2, 3]);
+    expect(p.payload).toEqual([]);
   });
 });
 
