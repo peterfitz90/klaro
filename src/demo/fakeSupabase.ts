@@ -15,6 +15,10 @@ const connections: Record<string, unknown>[] = [];
 const syncRuns: Record<string, unknown>[] = [];
 const actuals: Actual[] = [];
 const lineMap = new Map<string, string>();   // `${connection}|${code}` -> plan line
+type PlanLineRow = { id: string; version_id: string; scenario_id: string; plan_line: string; period: string; amount: string; origin: string };
+const versions: Record<string, unknown>[] = [];
+const planLines: PlanLineRow[] = [];
+const PLAN_ID = 'a0a0a0a0-0000-4000-8000-0000000000a1';
 const DEFS = [
   ['revenue', 'Revenue', 'income', 10, -1], ['cost_of_sales', 'Cost of sales', 'cost', 20, 1], ['gross_profit', 'Gross profit', 'calculated', 30, -1],
   ['payroll', 'Payroll', 'cost', 40, 1], ['marketing', 'Marketing', 'cost', 50, 1], ['premises', 'Rent and premises', 'cost', 60, 1],
@@ -35,13 +39,23 @@ const slice = (rows: unknown[], r: [number, number] | null) => (r ? rows.slice(r
 
 function query(table: string) {
   const filters: Record<string, unknown> = {};
+  const gte: Record<string, string> = {};
+  const lte: Record<string, string> = {};
   let single = false;
+  let head = false;
   let range: [number, number] | null = null;
   let inserted: Record<string, unknown> | null = null;
+  let patch: Record<string, unknown> | null = null;
+  const match = (r: Record<string, unknown>) => Object.entries(filters).every(([k, v]) => r[k] === v)
+    && Object.entries(gte).every(([k, v]) => String(r[k]) >= v) && Object.entries(lte).every(([k, v]) => String(r[k]) <= v);
   const b = {
-    select: () => b, order: () => b,
+    select: (_cols?: string, o?: { head?: boolean }) => { if (o?.head) head = true; return b; },
+    order: () => b,
     range: (from: number, to: number) => { range = [from, to]; return b; },
     eq: (col: string, v: unknown) => { filters[col] = v; return b; },
+    gte: (col: string, v: string) => { gte[col] = v; return b; },
+    lte: (col: string, v: string) => { lte[col] = v; return b; },
+    update: (row: Record<string, unknown>) => { patch = row; return b; },
     maybeSingle: () => { single = true; return b; },
     single: () => { single = true; return b; },
     insert: (row: Record<string, unknown>) => {
@@ -49,8 +63,23 @@ function query(table: string) {
       connections.push(inserted);
       return b;
     },
-    then: (resolve: (r: Res) => unknown, reject?: (e: unknown) => unknown) => {
+    then: (resolve: (r: Res & { count?: number }) => unknown, reject?: (e: unknown) => unknown) => {
       let data: unknown;
+      if (table === 'plan_versions' || table === 'plan_lines') {
+        const rows = (table === 'plan_versions' ? versions : planLines) as Record<string, unknown>[];
+        const hits = rows.filter(match);
+        if (patch) {
+          if (table === 'plan_versions' && 'locked_at' in patch) {
+            for (const h of hits) Object.assign(h, { locked_at: patch.locked_at ? new Date().toISOString() : null, unlocked_at: patch.locked_at ? h.unlocked_at : new Date().toISOString() });
+          } else for (const h of hits) Object.assign(h, patch);
+          return Promise.resolve(ok(single ? hits[0] ?? null : hits)).then(resolve, reject);
+        }
+        if (head) return Promise.resolve({ data: null, error: null, count: hits.length }).then(resolve, reject);
+        return Promise.resolve(ok(slice(hits, range))).then(resolve, reject);
+      }
+      if (table === 'scenarios') {
+        return Promise.resolve(ok(versions.some(v => v.id === filters.version_id) ? [{ id: `scn-${String(filters.version_id)}` }] : [])).then(resolve, reject);
+      }
       if (inserted) data = inserted;
       else if (table === 'entities') {
         const rows = [...entities].sort((a, c) => a.name.localeCompare(c.name));
@@ -60,7 +89,7 @@ function query(table: string) {
       } else if (table === 'connections') {
         data = connections.filter(c => c.entity_id === filters.entity_id);
       } else if (table === 'plans') {
-        data = [{ fiscal_year_start: 1 }];
+        data = [{ id: PLAN_ID, name: 'Main plan', fiscal_year_start: 1 }];
       } else if (table === 'plan_line_defs') {
         data = DEFS;
       } else if (table === 'sync_runs') {
@@ -115,6 +144,29 @@ function rpc(fn: string, args: Record<string, unknown>) {
       return ok({ sync_run_id: run.id, months_replaced: months, rows_removed: removed, rows_added: rows.length, actuals_through: through, last_synced_at: now });
     }
     if (fn === 'account_map') return ok(slice(accountMap(String(args.p_entity_id)), range));
+    if (fn === 'variance') return ok(slice(demoVariance(String(args.p_entity_id), (args.p_version_id as string | null) ?? null, String(args.p_from), String(args.p_to)), range));
+    if (fn === 'create_budget_from_actuals') {
+      await new Promise(r => setTimeout(r, 400));
+      let id = args.p_version_id as string | null;
+      if (id && versions.find(v => v.id === id)?.locked_at) return { data: null, error: { code: 'PT423', message: 'This version is locked. Unlock it first.' } };
+      if (!id) {
+        id = crypto.randomUUID();
+        versions.push({ id, plan_id: PLAN_ID, name: String(args.p_name), kind: 'budget', locked_at: null, unlocked_at: null, created_at: new Date().toISOString() });
+      }
+      const from = String(args.p_actuals_from), bFrom = String(args.p_budget_from);
+      const ups = (args.p_uplifts ?? {}) as Record<string, string>;
+      const budgetMonths = Array.from({ length: 12 }, (_, k) => addM(bFrom, k));
+      for (let i = planLines.length - 1; i >= 0; i--) if (planLines[i]?.version_id === id && budgetMonths.includes(planLines[i]?.period ?? '')) planLines.splice(i, 1);
+      for (const d of DEFS.filter(x => x.kind === 'income' || x.kind === 'cost')) {
+        for (let k = 0; k < 12; k++) {
+          const src = addM(from, k);
+          const sum = actuals.filter(a => a.period === src && lineMap.get(`${a.connection_id}|${a.account_code}`) === d.key).reduce((t, a) => t + a.amount, 0);
+          const amt = sum * (1 + Number(ups[d.key as string] ?? 0) / 100);
+          planLines.push({ id: crypto.randomUUID(), version_id: id, scenario_id: `scn-${id}`, plan_line: String(d.key), period: budgetMonths[k] ?? '', amount: amt.toFixed(2), origin: 'from_actuals' });
+        }
+      }
+      return ok(id);
+    }
     if (fn === 'unmapped_accounts') return ok(slice(accountMap(String(args.p_entity_id)).filter(r => r.plan_line === null), range));
     if (fn === 'set_line_map') {
       const entries = args.p_entries as { account_code: string; plan_line: string | null }[];
@@ -131,6 +183,37 @@ function rpc(fn: string, args: Record<string, unknown>) {
     then: (resolve: (r: Res) => unknown, reject?: (e: unknown) => unknown) => run().then(resolve, reject),
   };
   return b;
+}
+
+function addM(p: string, n: number): string {
+  const y = Number(p.slice(0, 4)), m = Number(p.slice(5, 7)) - 1 + n;
+  return `${y + Math.floor(m / 12)}-${String((m % 12 + 12) % 12 + 1).padStart(2, '0')}-01`;
+}
+
+/** A simplified fpa.variance for the demo: display sign, calculated lines, NULL where no data. */
+function demoVariance(entityId: string, versionId: string | null, from: string, to: string) {
+  const out: Record<string, unknown>[] = [];
+  const mapped = (a: Actual) => lineMap.get(`${a.connection_id}|${a.account_code}`) ?? 'unmapped';
+  for (let p = from; p <= to; p = addM(p, 1)) {
+    const acts = actuals.filter(a => a.entity_id === entityId && a.period === p);
+    const buds = planLines.filter(l => l.version_id === versionId && l.period === p);
+    const a = (k: string) => acts.filter(x => mapped(x) === k).reduce((t, x) => t + x.amount, 0);
+    const bu = (k: string) => buds.filter(x => x.plan_line === k).reduce((t, x) => t + Number(x.amount), 0);
+    for (const d of DEFS.filter(x => x.kind !== 'excluded')) {
+      const parts = d.kind === 'calculated' ? DEFS.filter(x => (x.kind === 'income' || x.kind === 'cost') && (x.sort_order as number) < (d.sort_order as number)).map(x => String(x.key)) : [String(d.key)];
+      const sign = d.display_sign as number;
+      const av = acts.length ? sign * parts.reduce((t, k) => t + a(k), 0) : null;
+      const bv = buds.length ? sign * parts.reduce((t, k) => t + bu(k), 0) : null;
+      const v = av !== null && bv !== null ? av - bv : null;
+      out.push({
+        line_key: d.key, line_label: d.label, line_kind: d.kind, line_order: d.sort_order, month: p,
+        actual: av === null ? null : av.toFixed(2), budget: bv === null ? null : bv.toFixed(2), variance: v === null ? null : v.toFixed(2),
+        variance_pct: v !== null && bv ? String(v / Math.abs(bv) * 100) : null,
+        favourable: v === null ? null : d.kind === 'cost' ? v <= 0 : d.kind === 'unmapped' ? null : v >= 0,
+      });
+    }
+  }
+  return out;
 }
 
 export function createClient() {

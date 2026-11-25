@@ -38,3 +38,11 @@ export function dateTime(iso: string): string {
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n.toLocaleString('en-IE')} ${n === 1 ? one : many}`;
 }
+
+/** "12,000.50" or "-80.00": an amount without a currency sign, for inputs and grids. */
+export function plainAmount(cents: bigint): string {
+  const neg = cents < 0n;
+  const abs = neg ? -cents : cents;
+  const whole = (abs / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${neg ? '-' : ''}${whole}.${(abs % 100n).toString().padStart(2, '0')}`;
+}

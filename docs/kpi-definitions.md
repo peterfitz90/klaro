@@ -29,6 +29,18 @@
   with actuals.
 - That month is the latest `actuals_through` across the entity's connections.
 
+## The wiring (built in 1E, not switched on)
+
+- **Built and tested:**
+  - the rules above, as `src/engine/kpi.ts`, tested in `kpi.test.ts`;
+  - the live strip, as `src/features/kpi/LiveKpiStrip.tsx`, tested in `kpi.test.tsx`.
+- **Switched off:** the shell still shows the placeholder strip ("—" everywhere), because
+  `KPI_STRIP_LIVE` in `src/app/shell/kpiSwitch.ts` is `false`. A test checks that it stays off.
+- **To switch it on after your sign-off:** set `KPI_STRIP_LIVE` to `true` and fill in the sign-off line
+  below.
+- **If the strip's figures fail to load,** every tile shows "—" and says why; it never shows a zero.
+  Its timeout wording is still to be confirmed (`docs/ui-rules.md` §6).
+
 ## Open points for Peter
 
 1. **Average monthly cash burn.** Proposed: the average fall in the cash balance over the last three

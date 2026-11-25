@@ -49,6 +49,17 @@ export function assertComplete<T>(rows: T[], size: number, what: string): T[] {
   return rows;
 }
 
+/**
+ * An exact row count (select with count: 'exact', head: true): the database counts, no rows are
+ * returned, so the API's row cap does not apply. A missing count is an error.
+ */
+export async function mustCount(query: PromiseLike<{ count: number | null; error: PgErrorLike | null }>, what: string): Promise<number> {
+  const { count, error } = await query;
+  if (error) throw new DbError(what, error);
+  if (typeof count !== 'number') throw new DbError(what, { message: 'the database did not return a count' });
+  return count;
+}
+
 /** Rows per request when paging a whole list: the API's own cap (docs/ui-rules.md section 1). */
 export const API_PAGE = 1000;
 /** A safety stop: no list in Phase 1 comes near this (20,000 rows per import). */
