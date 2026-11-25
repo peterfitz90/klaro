@@ -83,6 +83,13 @@ describe('month and year to date', () => {
   });
 });
 
+describe('actuals through and last synced (Phase 1 decision)', () => {
+  it('Compare shows "Actuals through [month], last synced [date]"', async () => {
+    show();
+    expect((await screen.findByTestId('actuals-through')).textContent).toMatch(/^Actuals through Mar 2026, last synced 5 Jan 2026, \d{2}:\d{2}\./);
+  });
+});
+
 describe('every month', () => {
   it('shows one figure per month, with the year to date', async () => {
     show();
