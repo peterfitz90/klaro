@@ -1,0 +1,195 @@
+account_code,account_name,month,amount
+4000,Sales - products,2025-01,-39058.45
+4100,Sales - services,2025-01,-15300.61
+5000,Purchases,2025-13,16604.45
+5100,Subcontractors,2025-01,4552.73
+6000,Wages and salaries,2025-01,$120.00
+6010,Employer's PRSI,2025-01,2384.43
+6100,Advertising,2025-01,2010.63
+,Rent,2025-01,3250.00
+6210,Light and heat,2025-01,721.16
+6210,Light and heat,2025-01,721.16
+6300,Telephone and internet,2025-01,212.64
+6310,Accountancy fees,2025-01,399.70
+6320,Bank charges,2025-01,39.23
+7000,Loan interest,2025-01,299.47
+1200,Bank current account,2025-01,4533.57
+2200,VAT control,2025-01,-1556.05
+9900,Clearing 7,2025-01,50.21
+4000,Sales - products,2025-02,-41857.00
+4100,Sales - services,2025-02,-21863.99
+5000,Purchases,2025-02,1.234
+5100,Subcontractors,2025-02,5248.98
+6000,Wages and salaries,2025-02,20608.18
+6010,Employer's PRSI,2025-02,2361.06
+6100,Advertising,2025-02,1291.69
+6200,Rent,2025-02,3250.00
+6210,Light and heat,2025-02,649.26
+6300,Telephone and internet,2025-02,208.44
+6310,Accountancy fees,2025-02,487.01
+6320,Bank charges,2025-02,35.32
+7000,Loan interest,2025-02,324.25
+1200,Bank current account,2025-02,6081.80
+2200,VAT control,2025-02,-2295.22
+9900,Clearing 7,2025-02,45.90
+4000,Sales - products,2025-03,-41035.64
+4100,Sales - services,2025-03,-15420.71
+5000,Purchases,2025-03,17511.35
+5100,Subcontractors,2025-03,5421.74
+6000,Wages and salaries,2025-03,20975.49
+6010,Employer's PRSI,2025-03,2369.38
+6100,Advertising,2025-03,1840.61
+6200,Rent,2025-03,3250.00
+6210,Light and heat,2025-03,710.03
+6300,Telephone and internet,2025-03,223.15
+6310,Accountancy fees,2025-03,499.18
+6320,Bank charges,2025-03,32.22
+7000,Loan interest,2025-03,308.76
+1200,Bank current account,2025-03,4896.21
+2200,VAT control,2025-03,-2251.86
+9900,Clearing 7,2025-03,99.88
+4000,Sales - products,2025-04,-44360.27
+4100,Sales - services,2025-04,-17556.65
+5000,Purchases,2025-04,18559.80
+5100,Subcontractors,2025-04,5449.83
+6000,Wages and salaries,2025-04,21434.34
+6010,Employer's PRSI,2025-04,2354.65
+6100,Advertising,2025-04,1426.72
+6200,Rent,2025-04,3250.00
+6210,Light and heat,2025-04,505.99
+6300,Telephone and internet,2025-04,220.45
+6310,Accountancy fees,2025-04,473.97
+6320,Bank charges,2025-04,40.12
+7000,Loan interest,2025-04,308.86
+1200,Bank current account,2025-04,-184.27
+2200,VAT control,2025-04,-1212.91
+9900,Clearing 7,2025-04,40.16
+4000,Sales - products,2025-05,-41038.40
+4100,Sales - services,2025-05,-21197.30
+5000,Purchases,2025-05,18817.78
+5100,Subcontractors,2025-05,3792.78
+6000,Wages and salaries,2025-05,21177.89
+6010,Employer's PRSI,2025-05,2353.32
+6100,Advertising,2025-05,1053.17
+6200,Rent,2025-05,3250.00
+6210,Light and heat,2025-05,704.28
+6300,Telephone and internet,2025-05,215.11
+6310,Accountancy fees,2025-05,398.84
+6320,Bank charges,2025-05,39.92
+7000,Loan interest,2025-05,305.47
+1200,Bank current account,2025-05,3135.15
+2200,VAT control,2025-05,-1845.52
+9900,Clearing 7,2025-05,47.66
+4000,Sales - products,2025-06,-38826.43
+4100,Sales - services,2025-06,-20561.85
+5000,Purchases,2025-06,16700.92
+5100,Subcontractors,2025-06,5336.31
+6000,Wages and salaries,2025-06,20981.59
+6010,Employer's PRSI,2025-06,2361.61
+6100,Advertising,2025-06,984.30
+6200,Rent,2025-06,3250.00
+6210,Light and heat,2025-06,576.39
+6300,Telephone and internet,2025-06,194.58
+6310,Accountancy fees,2025-06,511.50
+6320,Bank charges,2025-06,31.59
+7000,Loan interest,2025-06,324.51
+1200,Bank current account,2025-06,850.43
+2200,VAT control,2025-06,-1973.62
+9900,Clearing 7,2025-06,76.03
+4000,Sales - products,2025-07,-45629.87
+4100,Sales - services,2025-07,-14853.47
+5000,Purchases,2025-07,17539.48
+5100,Subcontractors,2025-07,5214.20
+6000,Wages and salaries,2025-07,20938.47
+6010,Employer's PRSI,2025-07,2383.60
+6100,Advertising,2025-07,1393.15
+6200,Rent,2025-07,3250.00
+6210,Light and heat,2025-07,719.43
+6300,Telephone and internet,2025-07,197.96
+6310,Accountancy fees,2025-07,402.45
+6320,Bank charges,2025-07,37.44
+7000,Loan interest,2025-07,321.48
+1200,Bank current account,2025-07,2668.84
+2200,VAT control,2025-07,-1576.51
+9900,Clearing 7,2025-07,94.94
+4000,Sales - products,2025-08,-47243.68
+4100,Sales - services,2025-08,-20178.14
+5000,Purchases,2025-08,15611.03
+5100,Subcontractors,2025-08,5297.60
+6000,Wages and salaries,2025-08,20682.43
+6010,Employer's PRSI,2025-08,2366.96
+6100,Advertising,2025-08,2021.58
+6200,Rent,2025-08,3250.00
+6210,Light and heat,2025-08,674.82
+6300,Telephone and internet,2025-08,198.63
+6310,Accountancy fees,2025-08,430.10
+6320,Bank charges,2025-08,33.75
+7000,Loan interest,2025-08,324.68
+1200,Bank current account,2025-08,2653.25
+2200,VAT control,2025-08,-2476.94
+9900,Clearing 7,2025-08,68.35
+4000,Sales - products,2025-09,-41907.62
+4100,Sales - services,2025-09,-17008.83
+5000,Purchases,2025-09,15366.36
+5100,Subcontractors,2025-09,3309.99
+6000,Wages and salaries,2025-09,20876.24
+6010,Employer's PRSI,2025-09,2335.32
+6100,Advertising,2025-09,1322.48
+6200,Rent,2025-09,3250.00
+6210,Light and heat,2025-09,702.49
+6300,Telephone and internet,2025-09,219.39
+6310,Accountancy fees,2025-09,467.64
+6320,Bank charges,2025-09,36.96
+7000,Loan interest,2025-09,324.70
+1200,Bank current account,2025-09,2596.57
+2200,VAT control,2025-09,-2466.72
+9900,Clearing 7,2025-09,129.18
+4000,Sales - products,2025-10,-36201.72
+4100,Sales - services,2025-10,-20840.81
+5000,Purchases,2025-10,17122.44
+5100,Subcontractors,2025-10,4675.02
+6000,Wages and salaries,2025-10,20538.06
+6010,Employer's PRSI,2025-10,2344.75
+6100,Advertising,2025-10,1628.95
+6200,Rent,2025-10,3250.00
+6210,Light and heat,2025-10,619.78
+6300,Telephone and internet,2025-10,204.95
+6310,Accountancy fees,2025-10,418.96
+6320,Bank charges,2025-10,44.21
+7000,Loan interest,2025-10,298.12
+1200,Bank current account,2025-10,4304.37
+2200,VAT control,2025-10,-1735.39
+9900,Clearing 7,2025-10,84.10
+4000,Sales - products,2025-11,-37964.23
+4100,Sales - services,2025-11,-19634.19
+5000,Purchases,2025-11,18694.44
+5100,Subcontractors,2025-11,3688.68
+6000,Wages and salaries,2025-11,20695.76
+6010,Employer's PRSI,2025-11,2276.25
+6100,Advertising,2025-11,1336.07
+6200,Rent,2025-11,3250.00
+6210,Light and heat,2025-11,503.23
+6300,Telephone and internet,2025-11,227.44
+6310,Accountancy fees,2025-11,442.01
+6320,Bank charges,2025-11,30.78
+7000,Loan interest,2025-11,313.20
+1200,Bank current account,2025-11,-842.25
+2200,VAT control,2025-11,-2313.27
+9900,Clearing 7,2025-11,109.04
+4000,Sales - products,2025-12,-43547.84
+4100,Sales - services,2025-12,-21476.55
+5000,Purchases,2025-12,18137.57
+5100,Subcontractors,2025-12,3136.10
+6000,Wages and salaries,2025-12,21061.29
+6010,Employer's PRSI,2025-12,2282.58
+6100,Advertising,2025-12,1675.86
+6200,Rent,2025-12,3250.00
+6210,Light and heat,2025-12,552.82
+6300,Telephone and internet,2025-12,199.13
+6310,Accountancy fees,2025-12,445.24
+6320,Bank charges,2025-12,29.66
+7000,Loan interest,2025-12,304.96
+1200,Bank current account,2025-12,390.06
+2200,VAT control,2025-12,-2443.23
+9900,Clearing 7,2025-12,4.18
+8000,Corporation tax,2025-12,9850.00
