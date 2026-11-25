@@ -38,7 +38,8 @@ Phase 2**. The KPI strip is live from that date. Written from Peter's Phase 1 de
 - **Switched on** after Peter's sign-off: `KPI_STRIP_LIVE = true` in `src/app/shell/kpiSwitch.ts`. A
   test checks the switch, and the shell's tests check that a page shows the live strip.
 - **If the strip's figures fail to load,** every tile shows "—" and says why; it never shows a zero.
-  Its timeout wording is still a proposal for Peter to confirm (`docs/ui-rules.md` §6).
+  Its timeout wording, "This took too long. Try again, and if it keeps happening, tell us.", is
+  confirmed by Peter, 25 Nov 2026 (`docs/ui-rules.md` §6).
 
 ## Deferred to Phase 2 (Peter, 25 Nov 2026)
 

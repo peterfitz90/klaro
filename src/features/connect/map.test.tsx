@@ -91,6 +91,13 @@ describe('mapping complete (ui-rules 1)', () => {
 });
 
 describe('excluded accounts are always visible (ui-rules 2)', () => {
+  // Gate 1 fix 4: an account mapped to excluded but with no actuals is not counted.
+  it('counts only excluded accounts that have actuals', async () => {
+    ROWS = [...ROWS, acc('1210', 'Closed bank account', 'excluded', '0.00', 0)];
+    show();
+    await status();
+    expect(excluded()).toContain('Not in the P&L (excluded): 2 accounts, net total €8,400.00 Dr');
+  });
   it('shows the excluded count and net total', async () => {
     show();
     await status();

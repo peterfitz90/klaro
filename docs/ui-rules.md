@@ -93,7 +93,7 @@ as always and is never told which option was chosen.
   | Import (`import_actuals`) | **"This took too long. Try a smaller file."** |
   | Compare (`variance`) | **"This took too long. Try a shorter date range."** |
   | Mapping, budget | **"This took too long. Nothing was changed. Try again, and if it keeps happening, tell us."** |
-  | KPI strip (proposed, 25 Nov; the strip is not live yet) | "This took too long. Try again, and if it keeps happening, tell us." It is a read, so it has no "Nothing was changed". For Peter to confirm |
+  | KPI strip | **"This took too long. Try again, and if it keeps happening, tell us."** (confirmed by Peter, 25 Nov 2026; it is a read, so it has no "Nothing was changed") |
 
   It never shows a blank screen, a spinner that never ends, or partial figures.
 - Any figures already on screen from that request are cleared, and nothing is saved. The database

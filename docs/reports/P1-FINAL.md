@@ -1,6 +1,10 @@
 # Klaro Phase 1: final report (Gate 1 review stop)
 
 25 Nov 2026, branch `phase-1`, draft PR #1. **Stopped for your Gate 1 review.**
+
+> **Gate 1 review, round 1 (25 Nov): not approved.** The six fixes from the 1E browser walk-through
+> had not been made. They are now done and tested (section 11). Your Phase 2 decisions are recorded in
+> section 12.
 - **Not done:**
   - nothing is merged to main;
   - Phase 2 is not started;
@@ -37,7 +41,7 @@
 | Row security, grants and function privileges verified as every role; the cross-entity test covers all new functions | **Met** | Section 3 below; `db/tests/GRANTS_EVIDENCE_0003.txt` |
 | CSV import atomic and whole-month replacing, with evidence | **Met** | Database tests: an injected failure at the last step and another midway; deleted months came back exactly. Whole-month replace re-imports February and April. Live: the 1,250-account import removed the sample's 193 rows in the same months (`sync_runs` `95a73c9d…`) |
 | Variance verified against hand-computed figures; rounding sums exactly | **Met** | 20 hand-computed variance cells; 8 shared rounding cases, each summing to its annual figure. The same fixture is used by the browser preview (`budget.test.ts`) |
-| Typecheck, lint and tests green locally and on GitHub Actions | **Met** | Locally: typecheck, lint, **257 tests** in 28 files, the build and the bundle check all pass. GitHub Actions on draft PR #1: section 9 |
+| Typecheck, lint and tests green locally and on GitHub Actions | **Met** | Locally: typecheck, lint, **266 tests** in 29 files, the build and the bundle check all pass. GitHub Actions on draft PR #1: section 9 |
 | KPI definitions signed off by you; the KPI strip shows "—" with no data | **Met**, one part not shown live | Signed off 25 Nov 2026 for Phase 1 only (`docs/kpi-definitions.md`). "—" with no data is tested (`kpi.test.ts`, `kpi.test.tsx`). **Not shown on the preview:** both entities there have actuals, and I didn't create an empty one without your OK (section 7) |
 | No Ledgrly table, policy, function or repo file modified (state how verified) | **Met** | Section 6 |
 | Phone-width check done | **Met** | `P1-C.md` (Connect at 390 px) and `P1-E.md` (Plan and Compare at 390 px), checked by me on the demo build; your phone checks of Plan and Compare were fine |
@@ -146,13 +150,18 @@ after 3,866 ms at the server.
 - **Not run:** the 16,000-row file was not imported. It wasn't required once the 15,000-row import
   had passed.
 
-**1E** (25 Nov, about 10:38–10:46 UTC, in **Walkthrough Test 1**; read from the database):
+**1E** (25 Nov, about 10:38–10:46 UTC, in **Walkthrough Test 1**; the facts below are read from the
+database):
+- **Who ran it:** Claude ran it in your Chrome on the preview, not you (your Gate 1 review). This
+  conversation has no record of that run, so I can't add any observation of my own. Everything below
+  is from the database.
+- **The six problems found in that walk-through** are fixed in section 11.
 - **Setup:** the sample was imported (193 rows, 17 accounts, all mapped).
 - **"Budget Jan 2026 to Dec 2026":** 96 lines. It has no hand edits now, which is what the rebuild
   should leave, and it was locked and later unlocked (`unlocked_at` 10:46:08).
 - **"Budget 2025 (test)":** 96 lines, for the optional variance step.
-- **Your checks:** you reported the CSV download and the phone-width checks on Compare and Plan as
-  fine.
+- **Your CSV-download and phone-width checks** on Compare and Plan are **recorded from your reply**
+  ("fine"). I did not observe them. My own phone-width checks were on the demo build (`P1-E.md`).
 - **Line count:** each budget has 96 lines (8 budget lines × 12 months). My walk-through text first said
   108; it is corrected in `P1-E.md`, and the screen always counted correctly.
 
@@ -202,7 +211,7 @@ been run.**
 
 - **Locally, on the Gate 1 commit:**
   - typecheck and lint;
-  - **257 tests** in 28 files: engine, data layer, screens, the migration planner and the secrets
+  - **266 tests** in 29 files: engine, data layer, screens, the migration planner and the secrets
     scanner;
   - `npm run build` and `npm run check:bundle` (no server secrets, no demo fakes).
 - **GitHub Actions, on draft PR #1:**
@@ -219,8 +228,10 @@ been run.**
      cannot open another entity by its address.
 2. **The excluded total on Compare covers all imported months,** not just the year shown. The screen
    says so. A per-year figure needs a new database function.
-3. **Hand edits to a budget save one line per request.** A save that fails partway says how many were
-   saved and shows what is saved. It is not all-or-nothing.
+3. **Hand edits to a budget still save one line per request,** so a save is not all-or-nothing.
+   - **Since the Gate 1 fix:** a save that fails partway says how many were saved, shows what is saved,
+     and **keeps the lines that did not save as unsaved edits**, so one click on Save retries them.
+   - **The all-or-nothing save** goes into the Phase 2 migration (your decision, section 12).
 4. **One CSV connection per entity** on the screens. The database allows more; the screens use the
    first.
 5. **CSV files must be UTF-8.** An older Excel "CSV" with accents is refused, with how to fix it.
@@ -232,13 +243,17 @@ been run.**
    or values are exposed.
 8. **Year-to-date files** need a row for every account in every month of the year. That follows "an
    error, not a guess" strictly, and some exports leave those rows out.
-9. **The KPI strip's timeout wording** is a proposal still to confirm ("This took too long. Try again,
-   and if it keeps happening, tell us.").
+9. **The placeholder KPI strip** (shown only if the strip is ever switched off again) now says "Key
+   figures are switched off." It used to say "No actuals yet. Connect a source first.", which was false
+   when actuals existed. The KPI strip's timeout wording, "This took too long. Try again, and if it
+   keeps happening, tell us.", is **confirmed by you** (25 Nov).
 10. **Backlog for a later migration:**
-    - an all-or-nothing save for hand edits (one function, one transaction);
-    - the VAT draft (`0002_fpa_vat_rules_DRAFT.sql`, sha-256 `c52477a9…`), which waits for you to check
+    - **in the Phase 2 migration** (your decision): an all-or-nothing save for hand edits, as one
+      function in one transaction;
+    - **later:** the VAT draft (`0002_fpa_vat_rules_DRAFT.sql`, sha-256 `c52477a9…`), after you check
       every rate and due-date rule;
-    - optionally, a per-year excluded total for Compare.
+    - **not planned** (your decision): a per-year excluded total for Compare. The total stays "across
+      all imported months" and says so.
 
 ## 11. Deviations and corrections during Phase 1
 
@@ -256,6 +271,20 @@ been run.**
   - Compare's missing "last synced", found in this review.
 - **The walk-throughs differed from the written steps** (one entity in 1C). They are recorded as they
   happened, from the database.
+
+### The six fixes from the 1E walk-through (Gate 1, round 1)
+
+Each fix has a test that **fails on the old code**. I ran the new tests against the old code first:
+9 failed, covering all five code fixes. Then I made the fixes; all 266 tests now pass.
+
+| # | Problem found | Cause | Fix | Tests |
+|---|---|---|---|---|
+| 1 | After **Replace N lines**, the dialog stayed open on a disabled "Rebuilding…" with the old warning, although the rebuild had worked. Only a reload cleared it | **My bug.** In rebuild mode, the Plan page gave the rebuild form and the budget view the **same React key** (the version id). React warned "two children with the same key", and the stale form stayed on screen. The grid was also refreshed only if the page happened to show its loading state, which React can skip when responses are fast | Separate keys; on success the form closes, the grid is read again (a revision number in the view's key), and the page says **"Budget rebuilt: 96 lines replaced."** (or "Budget created: …") | `plan.test.tsx`: two tests (the form closes, the message shows, the grid is re-read). Also checked end to end on the demo build: the form closed, the message showed, and the hand edit was replaced by the rebuilt figure |
+| 2 | The rebuild form starts with every uplift at 0, without saying so | Uplifts are not stored anywhere. That is by design, but the screen didn't say so | A note on the rebuild form: "Uplifts are not remembered from the last build: every line starts at 0%. Enter them again if you want the same ones." The confirmation lists the uplifts being applied, for example "Uplifts applied: Revenue +5.00%; every other line 0%." or "No uplifts: every line at 0%." | `plan.test.tsx`: three tests |
+| 3 | A save that failed partway threw away the lines that had not saved | The edits were cleared after any partial save | The lines that did not save stay as unsaved edits ("They are still here as unsaved: press Save to try again"), so one click retries; the saved ones show as saved | `plan.test.tsx`: a failure on the second of two lines, then the retry sends just that line |
+| 4 | The excluded count on Mapping and Compare included accounts with **no** actuals (for example "3 accounts, €0.00" on "test 1") | The count took every account mapped to excluded | Only excluded accounts **with actuals** are counted and totalled | `map.test.tsx`, `compare.test.tsx`: an excluded account with no actuals is not counted |
+| 5 | The KPI placeholder said "No actuals yet. Connect a source first." even where actuals exist | Phase 0 wording | It now says "Key figures are switched off." It shows only if the live strip is switched off again; the live strip is on | `parts.test.tsx` |
+| 6 | The walk-through said a rebuild replaces 108 lines | My arithmetic: 8 budget lines, not 9 | Corrected to 96 in `P1-E.md` and the tests (done earlier, commit `83ac6b8`) | `plan.test.tsx` |
 
 ## 12. Proposed Phase 2 (plan only; not started)
 
@@ -325,20 +354,19 @@ stops.
 4. **2D:** design first; stop for your decisions; then build; stop for your review.
 5. **Gate 2.**
 
-### Decisions I need from you before Phase 2 starts
+### Your Phase 2 decisions (25 Nov 2026, Gate 1 review)
 
-1. **Balance-sheet data:** closing balances per month, as proposed, or opening balances plus movements?
-2. **The cash-burn definition** in 2B, including or excluding financing, and the "n/a" rule.
-3. **Runway display:** one decimal, never rounded up? Show "n/a" when not burning cash?
-4. **VAT:** are you ready to check the 0002 draft's rates and due-date rules (IE and UK)? Cash or
-   invoice basis by default?
-5. **Ledgrly as a source:**
-   - who may link a Klaro entity to a Ledgrly company (an owner of both?);
-   - whether any read access on the Ledgrly side is acceptable;
-   - confirming that Ledgrly's test companies are never offered as sources.
-6. **The Ledgrly create-company wizard guard:** schedule it now, or before the first outside invite?
-7. **Backlog:** add the all-or-nothing budget save and a per-year excluded total to 2A's migration, or
-   leave them?
-8. **Test data:** keep "test 1" and Walkthrough Test 1 into Phase 2 for testing, or run the proposed
-   delete script after Gate 1?
-9. **The KPI strip timeout wording** (section 10, item 9).
+| # | Question | Your decision | What it means for the plan |
+|---|---|---|---|
+| 1 | Balance-sheet data | **Closing balances** per month | 2A as proposed: `fpa.balances_monthly` holds month-end balances; Cash balance = the sum of "Cash and bank" closing balances |
+| 2 | Cash burn | **Net cash burn**, and the label says loans and owner funding are included | 2B as proposed; the KPI label reads, for example, "Net cash burn (includes loans and owner funding)" |
+| 3 | Runway display | **One decimal, never rounded up; "n/a" when not burning cash** | Runway = cash ÷ net burn, cut (not rounded) to one decimal; "n/a" when burn is zero or negative; "—" with fewer than four month-end balances |
+| 4 | VAT | **Later.** Invoice basis by default, with cash basis as a per-entity setting | 2C moves after 2A/2B and 2D. When it starts: a per-entity VAT basis setting (invoice by default), and the 0002 draft applied only after you check its rules |
+| 5 | Ledgrly as a source | Needs an **owner of the Klaro entity** who is also an **admin or owner of the Ledgrly company**; **read-only**; **design first** | 2D starts with a design note for your review: the link check on both sides, read-only access, test companies never offered. No build before you approve it |
+| 6 | Ledgrly create-company wizard guard | A **separate task, before the first outside invite** | Not in Phase 2's Klaro work; tracked as a precondition for inviting anyone outside Ledgrly |
+| 7 | Backlog | **Add the all-or-nothing budget save** to the Phase 2 migration; **not** the per-year excluded total | The 2A migration also adds one function that saves a set of hand edits in one transaction |
+| 8 | Test data | **Keep both test entities until Gate 2** | The delete script stays unrun; it will be re-read (and its counts updated) before Gate 2 |
+| 9 | KPI strip timeout wording | **Confirmed:** "This took too long. Try again, and if it keeps happening, tell us." | Recorded in `docs/ui-rules.md` §6 |
+
+**Phase 2 order, after these decisions:** 2A (database), 2A and 2B (screens and KPI strip), 2D
+(design, then build), 2C VAT (later). There is a review stop after each, then Gate 2. **Not started.**

@@ -67,17 +67,24 @@ export function BudgetView({ entity, plan, defs, version, role, onRebuild, onCha
     setProblems(bad);
     if (bad.length) return;
     setBusy(true); setNotice(null);
-    let done = 0;
+    const saved: string[] = [];
     try {
-      for (const x of list) { await editLine(x.id, x.amount); done++; }
+      for (const x of list) { await editLine(x.id, x.amount); saved.push(x.id); }
       setEdits(new Map());
-      setNotice({ ok: true, text: `Saved ${plural(done, 'change')}.` });
+      setNotice({ ok: true, text: `Saved ${plural(saved.length, 'change')}.` });
       load.reload();
     } catch (err) {
       const msg = callMessage(err, 'budget');
-      // Each line is saved on its own: say exactly what happened, then show what is saved.
-      setNotice({ ok: false, text: done === 0 ? msg : `${plural(done, 'change')} of ${list.length} were saved; the rest were not. ${msg}` });
-      if (done > 0) { setEdits(new Map()); load.reload(); }
+      if (saved.length === 0) {
+        setNotice({ ok: false, text: msg });
+      } else {
+        // Each line is saved on its own. Keep the lines that did not save as unsaved edits, so one
+        // click retries them, and show what is saved now.
+        const left = list.length - saved.length;
+        setEdits(prev => { const n = new Map(prev); for (const id of saved) n.delete(id); return n; });
+        setNotice({ ok: false, text: `${plural(saved.length, 'change')} of ${list.length} ${saved.length === 1 ? 'was' : 'were'} saved; ${left === 1 ? 'the other was' : `the other ${left} were`} not. ${left === 1 ? 'It is' : 'They are'} still here as unsaved: press Save to try again. ${msg}` });
+        load.reload();
+      }
     } finally {
       setBusy(false);
     }

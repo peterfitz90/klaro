@@ -42,7 +42,8 @@ export function summarise(rows: readonly Account[]): MappingSummary {
   for (const r of rows) {
     if (r.months > 0) accounts++;
     if (r.months > 0 && r.plan_line === null) unmapped++;
-    if (r.plan_line === 'excluded') { excludedCount++; excludedCents += r.cents; }
+    // Only accounts with actuals (an excluded account with no actuals is not counted: Gate 1 fix).
+    if (r.months > 0 && r.plan_line === 'excluded') { excludedCount++; excludedCents += r.cents; }
   }
   return { accounts, unmapped, excludedCount, excludedCents, complete: accounts > 0 && unmapped === 0 };
 }

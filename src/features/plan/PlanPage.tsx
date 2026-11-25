@@ -29,6 +29,9 @@ export function PlanPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>({ kind: 'view' });
   const [changed, setChanged] = useState<Record<string, Version>>({});
+  const [notice, setNotice] = useState<string | null>(null);
+  // Bumped after every build or rebuild, so the budget view reads its lines again.
+  const [revision, setRevision] = useState(0);
 
   const drivers = (
     <section className="card" aria-labelledby="drivers-title" style={{ marginBottom: 16 }}>
@@ -52,7 +55,9 @@ export function PlanPage() {
   const { plan, defs, latest } = load.data;
   const budgets = load.data.budgets.map(v => changed[v.id] ?? v);
   const current = budgets.find(v => v.id === selected) ?? budgets[budgets.length - 1] ?? null;
-  const done = (id: string) => { setSelected(id); setMode({ kind: 'view' }); setChanged({}); load.reload(); };
+  // After a build or rebuild: close the form, say what happened, and read the budgets (and so the
+  // grid) again.
+  const done = (id: string, message: string) => { setSelected(id); setMode({ kind: 'view' }); setChanged({}); setNotice(message); setRevision(r => r + 1); load.reload(); };
 
   return (
     <>
@@ -76,8 +81,9 @@ export function PlanPage() {
             </div>
           )}
           {budgets.length === 0 && latest !== null && <p className="f-hint" style={{ marginBottom: 10 }}>No budgets yet.</p>}
+          {notice && <p className="msg msg-ok" role="status" style={{ marginBottom: 10 }}>{notice}</p>}
           {canEdit && latest !== null && mode.kind === 'view' && (
-            <button type="button" className="btn btn-p" onClick={() => setMode({ kind: 'new' })}>New budget from actuals</button>
+            <button type="button" className="btn btn-p" onClick={() => { setNotice(null); setMode({ kind: 'new' }); }}>New budget from actuals</button>
           )}
           {!canEdit && <p className="msg msg-warn">You can see the budgets. Building or changing one needs editor or owner access to {entity.name}.</p>}
         </div>
@@ -87,13 +93,13 @@ export function PlanPage() {
         <BudgetBuilder entity={entity} plan={plan} defs={defs} latestMonth={latest} version={null} onDone={done} onCancel={() => setMode({ kind: 'view' })} />
       )}
       {mode.kind === 'rebuild' && latest !== null && current && (
-        <BudgetBuilder key={current.id} entity={entity} plan={plan} defs={defs} latestMonth={latest} version={current}
+        <BudgetBuilder key={`rebuild-${current.id}`} entity={entity} plan={plan} defs={defs} latestMonth={latest} version={current}
           defaultBudgetFrom={mode.firstMonth ?? undefined} onDone={done} onCancel={() => setMode({ kind: 'view' })} />
       )}
       {mode.kind === 'rebuild' && latest === null && <p className="msg msg-warn">A rebuild needs actuals. Import them on Connect first.</p>}
       {current && (
-        <BudgetView key={current.id} entity={entity} plan={plan} defs={defs} version={current} role={role}
-          onRebuild={firstMonth => setMode({ kind: 'rebuild', firstMonth })}
+        <BudgetView key={`view-${current.id}-${revision}`} entity={entity} plan={plan} defs={defs} version={current} role={role}
+          onRebuild={firstMonth => { setNotice(null); setMode({ kind: 'rebuild', firstMonth }); }}
           onChanged={v => setChanged(prev => ({ ...prev, [v.id]: v }))} />
       )}
       {drivers}

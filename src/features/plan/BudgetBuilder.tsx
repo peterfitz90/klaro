@@ -21,7 +21,8 @@ export interface BudgetBuilderProps {
   version: Version | null;
   /** For a rebuild: the first month the version already has. */
   defaultBudgetFrom?: Period;
-  onDone: (versionId: string) => void;
+  /** Called after a successful build or rebuild, with the message to show. */
+  onDone: (versionId: string, message: string) => void;
   onCancel: () => void;
 }
 
@@ -87,11 +88,22 @@ export function BudgetBuilder(props: BudgetBuilderProps) {
     return out;
   };
 
+  /** The uplifts the rebuild will apply, in words, for the confirmation. */
+  const upliftSummary = () => {
+    const applied = (view?.rows ?? []).filter(r => 'bp' in r.parsed && r.parsed.bp !== 0n)
+      .map(r => `${r.def.label} ${'bp' in r.parsed && r.parsed.bp > 0n ? '+' : ''}${'bp' in r.parsed ? bpText(r.parsed.bp) : ''}%`);
+    return applied.length ? `Uplifts applied: ${applied.join(', ')}; every other line 0%.` : 'No uplifts: every line at 0%.';
+  };
+
   async function build() {
     setBusy(true); setError(null);
     try {
       const id = await createBudget({ planId: plan.id, versionId: version?.id ?? null, name: version ? null : name.trim(), actualsFrom: windowFrom, budgetFrom, uplifts: sentUplifts() });
-      props.onDone(id);
+      const message = version && confirm
+        ? `Budget rebuilt: ${plural(confirm.total, 'line')} replaced.`
+        : `Budget created: ${name.trim()}.`;
+      setConfirm(null);
+      props.onDone(id, message);
     } catch (err) {
       setConfirm(null);
       setError((err as { code?: unknown }).code === 'PT423' ? 'This version is locked. Unlock it first.' : callMessage(err, 'budget'));
@@ -139,6 +151,11 @@ export function BudgetBuilder(props: BudgetBuilderProps) {
             </select>
           </div>
         </div>
+        {version && (
+          <p className="msg msg-warn" style={{ marginBottom: 10 }}>
+            Uplifts are not remembered from the last build: every line starts at 0%. Enter them again if you want the same ones.
+          </p>
+        )}
         <p className="f-hint" style={{ marginBottom: 10 }}>
           Each line's budget is its actual for the same month times (1 + uplift). Months are rounded to cents and the last month takes the
           rest, so the months add up to the yearly figure. Revenue and profit are shown as positive numbers.
@@ -200,6 +217,7 @@ export function BudgetBuilder(props: BudgetBuilderProps) {
               {confirm.manual > 0 ? `, including ${plural(confirm.manual, 'line')} edited by hand` : ', none of them edited by hand'}.</strong>{' '}
               This cannot be undone.
             </p>
+            <p style={{ marginBottom: 8 }}>{upliftSummary()}</p>
             <div className="row-gap">
               <button type="button" className="btn btn-d" disabled={busy} onClick={build}>{busy ? 'Rebuilding…' : `Replace ${plural(confirm.total, 'line')}`}</button>
               <button type="button" className="btn btn-s btn-sm" disabled={busy} onClick={() => setConfirm(null)}>Cancel</button>
