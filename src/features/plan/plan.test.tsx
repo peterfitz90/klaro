@@ -143,6 +143,48 @@ describe('rebuilding an existing budget (ui-rules 4)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Replace 96 lines' }));
     await waitFor(() => expect(planApi.createBudget).toHaveBeenCalledWith(expect.objectContaining({ versionId: V1.id, name: null, budgetFrom: '2026-01-01' })));
   });
+  // Gate 1 fix 1: after the yes the dialog stayed open on a disabled "Rebuilding…" although the
+  // rebuild had succeeded.
+  it('after the yes, the form closes, the grid is read again, and it says how many lines were replaced', async () => {
+    await openRebuild();
+    const linesBefore = planApi.budgetLines.mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: 'Replace 96 lines' }));
+    expect(await screen.findByText('Budget rebuilt: 96 lines replaced.')).toBeTruthy();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Rebuilding/ })).toBeNull();
+    expect(screen.queryByRole('table', { name: 'Budget by line' })).toBeNull();
+    await waitFor(() => expect(planApi.budgetLines.mock.calls.length).toBeGreaterThan(linesBefore));
+    expect(await screen.findByRole('table', { name: /Budget 2026/ })).toBeTruthy();
+  });
+  it('the dialog closes even when the rebuilt version is the one already shown (no reload of the list needed)', async () => {
+    // The list of budgets does not change on a rebuild; the screen must not depend on it changing.
+    await openRebuild();
+    fireEvent.click(screen.getByRole('button', { name: 'Replace 96 lines' }));
+    await screen.findByText('Budget rebuilt: 96 lines replaced.');
+    expect(screen.queryByText(/Rebuilding replaces/)).toBeNull();
+  });
+  // Gate 1 fix 2: the rebuild form starts with every uplift at 0, and says so; the yes lists the uplifts.
+  it('the rebuild form says uplifts are not remembered and start at 0', async () => {
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: 'Rebuild from actuals…' }));
+    await screen.findByRole('table', { name: 'Budget by line' });
+    expect(screen.getByText(/Uplifts are not remembered from the last build: every line starts at 0%/)).toBeTruthy();
+    expect((screen.getByLabelText('Uplift for Revenue, percent') as HTMLInputElement).value).toBe('');
+  });
+  it('the confirmation lists the uplifts that will be applied', async () => {
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: 'Rebuild from actuals…' }));
+    await screen.findByRole('table', { name: 'Budget by line' });
+    fireEvent.change(screen.getByLabelText('Uplift for Revenue, percent'), { target: { value: '5' } });
+    fireEvent.change(screen.getByLabelText('Uplift for Payroll, percent'), { target: { value: '-2.5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Rebuild…' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog.textContent).toContain('Uplifts applied: Revenue +5.00%, Payroll -2.50%; every other line 0%.');
+  });
+  it('the confirmation says when no uplift is applied', async () => {
+    const dialog = await openRebuild();
+    expect(dialog.textContent).toContain('No uplifts: every line at 0%.');
+  });
   it('a locked version cannot be rebuilt: the screen says to unlock first', async () => {
     versions = [{ ...V1, locked_at: '2026-01-07T10:00:00Z' }];
     show();
@@ -213,6 +255,21 @@ describe('editing lines by hand', () => {
     fireEvent.change(await screen.findByLabelText('Revenue, Jan 2026'), { target: { value: '1,500' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save 1 change' }));
     expect((await screen.findByRole('alert')).textContent).toBe('This took too long. Nothing was changed. Try again, and if it keeps happening, tell us.');
+  });
+  // Gate 1 fix 3: a save that fails partway keeps the lines that did not save, so one click retries.
+  it('if saving fails partway, the unsaved lines stay as edits and one click retries them', async () => {
+    planApi.editLine.mockImplementationOnce(async () => undefined).mockImplementationOnce(async () => { throw timeout(); });
+    show();
+    fireEvent.change(await screen.findByLabelText('Revenue, Jan 2026'), { target: { value: '1,500' } });
+    fireEvent.change(screen.getByLabelText('Payroll, Feb 2026'), { target: { value: '450' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save 2 changes' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('1 change of 2 was saved; the other was not.');
+    await waitFor(() => expect((screen.getByLabelText('Payroll, Feb 2026') as HTMLInputElement).value).toBe('450'));
+    expect(screen.getByRole('button', { name: 'Save 1 change' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Save 1 change' }));
+    await waitFor(() => expect(planApi.editLine).toHaveBeenCalledTimes(3));
+    expect(planApi.editLine).toHaveBeenLastCalledWith('payroll-2026-02-01', '450.00');
+    expect(await screen.findByText('Saved 1 change.')).toBeTruthy();
   });
   it('the calculated lines follow the edits (display sign: revenue less costs)', async () => {
     show();

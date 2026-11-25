@@ -117,7 +117,7 @@ describe('entities', () => {
     // The live strip (signed off 25 Nov 2026), not the placeholder. With no database in this test it
     // fails closed: "—" in every tile and the reason, never a zero.
     const strip = screen.getByRole('region', { name: 'Key figures' });
-    expect(screen.queryByRole('region', { name: 'Key figures (no data yet)' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Key figures (switched off)' })).toBeNull();
     expect(await within(strip).findAllByText(/Could not load the figures/)).toHaveLength(4);
     expect(within(strip).getAllByText('—')).toHaveLength(4);
   });

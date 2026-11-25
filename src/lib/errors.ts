@@ -28,7 +28,7 @@ export const TIMEOUT_MESSAGES: Record<CallKind, string> = {
   compare: 'This took too long. Try a shorter date range.',
   mapping: 'This took too long. Nothing was changed. Try again, and if it keeps happening, tell us.',
   budget: 'This took too long. Nothing was changed. Try again, and if it keeps happening, tell us.',
-  // Proposed for the KPI strip (not live yet): a read, so no "Nothing was changed". Peter to confirm.
+  // The KPI strip (a read, so no "Nothing was changed"). Confirmed by Peter, 25 Nov 2026.
   kpi: 'This took too long. Try again, and if it keeps happening, tell us.',
 };
 

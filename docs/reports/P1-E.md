@@ -201,7 +201,8 @@ page never scrolls sideways (page width 384 px plus the scrollbar).
     - Marketing €805.14, the one account mapped there;
     - Operating and Net profit -€805.14;
     - Unmapped -€133,396.26, from the 1,249 unmapped accounts;
-    - "Not in the P&L (excluded): 3 accounts, net total €0.00". Those accounts have no actuals left
+    - "Not in the P&L (excluded): 3 accounts, net total €0.00" (before Gate 1 fix 4, which counts only
+      excluded accounts with actuals; see P1-FINAL section 11). Those accounts have no actuals left
       in that entity.
   - **The KPI strip** still shows "—" in all four tiles.
 

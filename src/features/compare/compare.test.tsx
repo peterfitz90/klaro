@@ -106,6 +106,12 @@ describe('every month', () => {
 });
 
 describe('excluded accounts always visible (ui-rules 2)', () => {
+  // Gate 1 fix 4: an account mapped to excluded but with no actuals is not counted.
+  it('counts only excluded accounts that have actuals', async () => {
+    accounts = [...accounts, { ...acc('1210', 'excluded', '0.00'), months: 0, first_month: null, last_month: null }];
+    show();
+    expect((await screen.findByTestId('excluded-summary')).textContent).toContain('2 accounts, net total €300.00 Dr');
+  });
   it('shows the count and net total', async () => {
     show();
     expect((await screen.findByTestId('excluded-summary')).textContent).toContain('2 accounts, net total €300.00 Dr');
