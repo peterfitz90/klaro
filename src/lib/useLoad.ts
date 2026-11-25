@@ -9,7 +9,8 @@ export type Load<T> =
   | { status: 'error'; message: string }
   | { status: 'ok'; data: T };
 
-export function useLoad<T>(fn: () => Promise<T>, deps: readonly unknown[]): Load<T> & { reload: () => void } {
+/** `toMessage` turns an error into the text shown (for example the timeout message for a call). */
+export function useLoad<T>(fn: () => Promise<T>, deps: readonly unknown[], toMessage: (err: unknown) => string = userMessage): Load<T> & { reload: () => void } {
   const [state, setState] = useState<Load<T>>({ status: 'loading' });
   const [tick, setTick] = useState(0);
   const run = useRef(0);
@@ -20,7 +21,7 @@ export function useLoad<T>(fn: () => Promise<T>, deps: readonly unknown[]): Load
     setState({ status: 'loading' });
     fn().then(
       data => { if (run.current === mine) setState({ status: 'ok', data }); },
-      (err: unknown) => { if (run.current === mine) setState({ status: 'error', message: userMessage(err) }); },
+      (err: unknown) => { if (run.current === mine) setState({ status: 'error', message: toMessage(err) }); },
     );
     // fn changes identity on every render; the caller's deps say when to reload.
     // eslint-disable-next-line react-hooks/exhaustive-deps

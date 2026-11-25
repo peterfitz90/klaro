@@ -23,7 +23,9 @@ every item below done and recorded in `docs/reports/P1-C.md`.
 - **One real end-to-end import of a large file** from the browser, as a signed-in user:
   - at least **15,000 rows** and **3 MB or more**;
   - made-up data;
-  - generated from the sample fixture's shape.
+  - generated from the sample fixture's shape: `node scripts/make-actuals-csv.mjs large <folder>`
+    writes `large-actuals-16000.csv` (16,000 rows, 3,279,781 bytes; about 4.35 MB as the database
+    measures the rows, under its 5 MB limit).
 - **Purpose:** to test Supabase's web gateway (request size limits and timeouts), not just the
   database. Every 0003 timing was measured inside the database.
 - **Record:**
