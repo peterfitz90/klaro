@@ -200,7 +200,18 @@ block per account. The real walk-through below is still needed.
     from main only in two older report files.
   - The phase-1 build has a `*.vercel.app` address, but the shared Clerk instance refuses sign-in there
     (B4).
-- **Two ways to put phase-1 on the preview hostname** (your choice):
+- **Done on your instruction (option A, 25 Nov):**
+  - I merged phase-1 into `preview` as `5b38b5b` and pushed it. The merged files are identical to
+    phase-1 at `254019f`.
+  - Vercel reported "Deployment has completed".
+  - `klaro-preview.ledgrly.ie` now serves bundle `index-DcCy4_OD.js`:
+    - the live Clerk key, and no development key;
+    - the **Import** and **Map accounts** tabs.
+  - `/samples/sample-actuals.csv` returns the CSV: first line `account_code,account_name,month,amount`,
+    193 rows. The broken copy has `$120.00` on line 6.
+  - Seeing the tabs on screen needs an entity. Your account has none on the preview yet, and I created
+    no data, so that is step 2 of the walk-through.
+- The two options as first written, for the record:
   - **A. Recommended: merge phase-1 into `preview`.** No Vercel setting changes. Say "merge phase-1
     into preview" and I will run `git checkout preview && git merge phase-1 && git push`. Vercel then
     builds `preview` and the hostname updates by itself in about a minute.
