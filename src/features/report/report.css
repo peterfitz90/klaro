@@ -1,0 +1,53 @@
+/* The monthly report (Phase 3, REPORT_LIVE): screen layout and the print stylesheet (A4, black on
+   white, no sidebar or navigation, rows not split across pages, charts included). */
+.report-head { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+.report-entity { font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.report-title { font-size: 22px; margin: 2px 0 6px; }
+.report-section { margin-bottom: 14px; }
+.report-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.report-chart { margin: 0; }
+.report-chart svg { width: 100%; height: auto; display: block; }
+.report-chart .grid { stroke: var(--border-2); stroke-width: 1; }
+.report-chart .axis-zero { stroke: var(--text-muted); stroke-width: 1.2; }
+.report-chart .tick, .report-chart .bar-label { fill: var(--text-muted); font-size: 11px; font-family: inherit; }
+.report-chart .bar-label { fill: var(--text); font-size: 10.5px; }
+.report-chart .bar { fill: var(--accent); }
+.report-chart .series polyline, .report-legend line { stroke-width: 2; fill: none; }
+.report-chart .series-revenue polyline, .report-legend .series-revenue line { stroke: var(--accent); }
+.report-chart .series-revenue circle, .report-chart .series-revenue rect, .report-legend .series-revenue circle { fill: var(--accent); stroke: var(--accent); }
+.report-chart .series-net-profit polyline, .report-legend .series-net-profit line { stroke: var(--text); }
+.report-chart .series-net-profit rect, .report-legend .series-net-profit rect { fill: var(--text); stroke: var(--text); }
+.report-chart .series-budget polyline, .report-legend .series-budget line { stroke-dasharray: 5 4; }
+.report-chart .series-budget circle, .report-chart .series-budget rect,
+.report-legend .series-budget circle, .report-legend .series-budget rect { fill: var(--surface, #fff); stroke-width: 1.5; }
+.report-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.legend-item { display: inline-flex; align-items: center; gap: 4px; }
+.report-cash { display: grid; grid-template-columns: minmax(0, 2fr) minmax(140px, 1fr); gap: 12px; align-items: start; }
+.report-notes { margin: 0 0 0 18px; }
+.report-kpis { margin-bottom: 0; }
+@media (max-width: 640px) {
+  .report-cash { grid-template-columns: 1fr; }
+  .report-title { font-size: 19px; }
+}
+
+@media print {
+  @page { size: A4; margin: 12mm; }
+  html, body { background: #fff !important; color: #000 !important; }
+  .sidebar, .topbar, .no-print, .content > .kpi-grid, .content > .msg { display: none !important; }
+  .app, .main, .content { display: block !important; padding: 0 !important; margin: 0 !important; background: #fff !important; overflow: visible !important; height: auto !important; }
+  .report, .report * { color: #000 !important; background: transparent !important; box-shadow: none !important; }
+  .report .card, .report .kpi-card { border: 1px solid #999 !important; }
+  .report .table-wrap { overflow: visible !important; }
+  .report table { width: 100%; font-size: 9pt; }
+  .report tr, .report .kpi-card, .report figure, .report .report-cash-side { break-inside: avoid; page-break-inside: avoid; }
+  .report h2, .report h3 { break-after: avoid; page-break-after: avoid; }
+  .report-section { break-inside: auto; }
+  .report .kpi-grid { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 6px !important; }
+  .report-chart .grid { stroke: #ccc !important; }
+  .report-chart .axis-zero, .report-chart polyline, .report-legend line { stroke: #000 !important; }
+  .report-chart .tick, .report-chart .bar-label { fill: #000 !important; }
+  .report-chart .bar { fill: #888 !important; }
+  .report-chart circle, .report-chart rect:not(.bar), .report-legend circle, .report-legend rect { stroke: #000 !important; fill: #000 !important; }
+  .report-chart .series-budget circle, .report-chart .series-budget rect, .report-legend .series-budget circle, .report-legend .series-budget rect { fill: #fff !important; }
+  .report a { text-decoration: none; }
+}
