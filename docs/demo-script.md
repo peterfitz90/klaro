@@ -1,6 +1,6 @@
 # Klaro demo script (prototype, 27 Nov 2026)
 
-About 8 to 10 minutes. It runs on **klaro-preview.ledgrly.ie**, the `preview` branch.
+About 8 to 10 minutes, plus 2 for Scenarios. It runs on **klaro-preview.ledgrly.ie**, the `preview` branch.
 
 **Preview or production?**
 - **Production** (klaro.ledgrly.ie) serves `main`, so it shows Phase 1 only until you approve the
@@ -56,6 +56,33 @@ for a fresh journey use **Walkthrough Test 2**:
    accounts.
 
 That adds about 2 minutes.
+
+## Final 2 minutes: Scenarios (Phase 3 slice)
+
+The Scenarios panel sits under the budget grid on Plan. `SCENARIOS_LIVE` is on after its walk-through
+on the preview (26 Nov 2026).
+
+**Starting state:**
+- "Budget 2025 (test)" already has two saved scenarios, from the walk-through:
+  - **Upside:** revenue +10%, payroll +5%;
+  - **Downside:** revenue −10%.
+- "Budget Jan 2026 to Dec 2026" was locked in step 6.
+
+| # | Time | Click | What the audience sees | Rough edges to avoid |
+|---|---|---|---|---|
+| 9 | 1:15 | **Plan.** In the budget picker choose **"Budget 2025 (test)"**, then scroll below the grid to **Scenarios: Jan 2025 to Dec 2025**. Change **Upside: Payroll change %** from 5 to **8**, then **Save scenarios**. | Base, Upside and Downside side by side. Base: Revenue €724,564.25, Total costs €631,134.69, Net profit €93,429.56. Upside before the change: €797,020.68, €671,548.28, €125,472.40. Downside: €652,107.83, €604,679.71, €47,428.12. **Closing cash, month 12 (indicative):** after step 5, €95,400.00 + the year's profit (Base €188,829.56, Upside €220,872.40, Downside €142,828.12), with the caveat "indicative: profit used as a proxy for cash; ignores timing, VAT, tax, capex and financing". Without balances, it shows "—" and says why. After the change: "Scenarios saved". | Say that cost of sales moves with revenue; marketing, rent, interest and tax don't move. Change one figure at a time: the table updates as you type. |
+| 10 | 0:45 | Choose **"Budget Jan 2026 to Dec 2026"**, the one locked in step 6. | Its scenarios can be seen but not changed: "This budget is locked: you can see its scenarios, but they cannot be changed or saved." Upside and Downside show as "not saved yet", at 0%. | None. |
+
+### Do not click (Scenarios)
+
+- **Delete** on a saved scenario. It asks first ("Delete it" / "Keep"). If it is deleted, its drivers
+  go with it, and nothing is lost elsewhere; but avoid it live.
+- **Add a scenario** more than twice. At five it stops, with "At most 5 scenarios, Base included";
+  that is fine, but it is noise.
+- **A percentage with three decimals, or above 1000.** The row shows the problem and Save refuses;
+  that is correct, but distracting.
+- **Saving scenarios on an unlocked budget you don't want changed.** Saves are real and shared with
+  production.
 
 ## Do not click (2B)
 

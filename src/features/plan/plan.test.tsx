@@ -28,7 +28,15 @@ const planApi = {
   variance: vi.fn(async () => ACTUALS),
 };
 vi.mock('./api', () => planApi);
-const connectApi = { listConnections: vi.fn(async () => [CONN]), listPlanLineDefs: vi.fn(async () => DEFS) };
+const connectApi = { listConnections: vi.fn(async () => [CONN]), listPlanLineDefs: vi.fn(async () => DEFS), cashPosition: vi.fn(async () => []) };
+// Phase 3 slice: the Scenarios panel shows under a budget (SCENARIOS_LIVE). Its data calls are stubbed
+// here (no scenarios, no balances) so this file's Phase 1/2 checks run unchanged; the panel has its
+// own tests in scenarios.test.tsx.
+vi.mock('./scenariosApi', () => ({
+  listScenarios: vi.fn(async () => []), listDrivers: vi.fn(async () => []), listValues: vi.fn(async () => []),
+  ensureDrivers: vi.fn(), addScenarios: vi.fn(), renameScenario: vi.fn(), deleteScenario: vi.fn(), insertValues: vi.fn(), updateValue: vi.fn(),
+  MAX_SCENARIOS: 5,
+}));
 vi.mock('../connect/api', () => connectApi);
 vi.mock('../../lib/supabase', () => ({ fpaClient: () => { throw new Error('no db in tests'); } }));
 const { PlanPage } = await import('./PlanPage');

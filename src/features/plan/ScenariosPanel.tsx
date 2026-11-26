@@ -26,6 +26,11 @@ const BUDGET_LINES = ['revenue', 'cost_of_sales', 'payroll', 'marketing', 'premi
 type Inputs = Record<DriverKey, string>;
 interface Row { key: string; id: string | null; name: string; savedName: string | null; isBase: boolean; inputs: Inputs; savedBp: Partial<Record<DriverKey, bigint>> }
 const ZERO: Inputs = { revenue: '0', payroll: '0', other: '0' };
+/** A stored value as text without trailing decimal zeros ("10.000000" -> "10", 7.5 -> "7.5"). */
+export const stored = (v: number | string) => {
+  const t = String(v).trim();
+  return t.includes('.') ? t.replace(/0+$/, '').replace(/\.$/, '') : t;
+};
 
 export interface ScenariosPanelProps {
   entity: Entity;
@@ -73,7 +78,7 @@ export function ScenariosPanel({ entity, plan, version, role, lines, months, tod
       for (const v of values.filter(x => x.scenario_id === s.id)) {
         const k = driverKey.get(v.driver_id);
         if (!k || k in savedBp) continue;
-        const r = parsePercent(String(v.value));
+        const r = parsePercent(stored(v.value));
         inputs[k] = 'bp' in r ? percentText(r.bp) : String(v.value);
         if ('bp' in r) savedBp[k] = r.bp;
       }
@@ -158,7 +163,7 @@ export function ScenariosPanel({ entity, plan, version, role, lines, months, tod
           const existing = saved.find(v => v.scenario_id === sid && v.driver_id === driverIds[k]);
           if (!existing) inserts.push({ driver_id: driverIds[k], scenario_id: sid, period: months[0], value });
           else {
-            const p = parsePercent(String(existing.value));
+            const p = parsePercent(stored(existing.value));
             if (!('bp' in p) || p.bp !== d[k]) updates.push({ id: existing.id, value });
           }
         }
