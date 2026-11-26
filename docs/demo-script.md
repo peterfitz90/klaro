@@ -1,13 +1,13 @@
 # Klaro demo script (prototype, 27 Nov 2026)
 
-About 13 minutes in all: the main walkthrough (steps 1–8) about 9, Scenarios 2, Report 2. The
+About 15 minutes in all: the main walkthrough (steps 1–8) about 9, Scenarios 2, Report 2, Cash 2. The
 "Extras if there is time" at the end are optional. It runs on **klaro-preview.ledgrly.ie**, the
 `preview` branch.
 
 **Preview or production?**
-- **Production** (klaro.ledgrly.ie) serves `main`, which has everything up to Scenarios (phase-2,
-  merged). Only the **Report** (phase-3) is still the placeholder on production, until phase-3 is
-  merged.
+- **Production** (klaro.ledgrly.ie) serves `main`, which has everything up to the Report (phase-3,
+  merged). The new **Cash** page (phase-4) is on the preview only; on production it is still the
+  placeholder until phase-4 is merged.
 - **Preview and production share one database.** Anything imported, mapped or saved in the demo
   stays, on both.
 
@@ -141,7 +141,8 @@ because payroll rises 20%. Don't save changes here unless you mean to: these thr
 
 ## Do not click (2B)
 
-- **Cash** in the side menu. It is a placeholder for the forecast, which is not built yet.
+- **Cash on production.** It is still the placeholder there until phase-4 is merged. On the preview it
+  is the Cash page (the final 2 minutes, "Cash").
 - **Report on production** before phase-3 is merged. It is still the placeholder there; on the preview
   it is the monthly report (the last 2 minutes below).
 - **Connect → "Accounting package" or "MCP-style connection".** They are disabled and say "Not
@@ -201,7 +202,57 @@ Each of these was checked on the preview on 26 Nov 2026, read-only. Run them on 
 |---|---|---|---|
 | **(a) Every month** | **Compare** → leave Budget on "Budget 2025 (stretch)" → **SHOW: Every month** → Figure: **Variance** (or Actual, Budget, Variance %) | A grid of all 12 months plus YTD for every line. Revenue is under budget every month: for example Jan 2025 −€3,261.54, "▼ Unfavourable", each with an arrow and the word. | It is wide: on a small screen it scrolls sideways inside its box. Switch back to "Month and YTD" before moving on. |
 | **(b) Exports** | **Compare → Export ▾ → Download CSV**. Then **Report → Download CSV (budget against actual)** | Compare's menu has one item, "Download CSV": every line, every month, and the year to date. The Report's button saves the same file format, for its month and budget. | Each opens the browser's download prompt. Mention it and skip the click if the room can't see the downloads bar. |
-| **(c) Go to… palette** | Press **Ctrl+K** (or Cmd+K), or click **Go to…** at the top. Type "rep" and press **Enter**; **Escape** closes it | A small search box listing Plan, Compare, Cash, Report and Connect for the entity, and "All entities". Enter opens the page. | Cash is in the list, and it is still the placeholder: don't choose it. |
+| **(c) Go to… palette** | Press **Ctrl+K** (or Cmd+K), or click **Go to…** at the top. Type "rep" and press **Enter**; **Escape** closes it | A small search box listing Plan, Compare, Cash, Report and Connect for the entity, and "All entities". Enter opens the page. | On the preview, Cash is the new Cash page; on production it is still the placeholder. |
 | **(d) New budget from actuals** (**Test 2 only**) | **Plan → New budget from actuals** → a name (for example "Demo budget 2026") → Actuals: **Jan 2025 to Dec 2025**, Budget: Jan 2026 to Dec 2026 → type percentages in the **Uplift %** column (for example Revenue 5, Payroll 3) → **Create the budget** | Each line's 12 months of actuals, the uplift, and the budget it gives, line by line, before anything is saved. Then the new budget's grid, with the months adding up exactly. | **This saves a new budget** (demo data from then on). Do it on Test 2 only. A fresh budget has no hand edits. **Never use Rebuild from actuals… on a budget that was edited by hand:** it replaces the edits (it warns first). **Cancel** closes the form without saving. |
 | **(e) Import history and template** | **Connect → Import** → scroll to **Recent imports**; then **Download the template** | Recent imports lists **when** each file was imported, the file name, its type (P&L or Balances), the months it replaced, and the rows removed and added. On Test 2: `sample-balances.csv` (Balances, 0 removed, 36 added) and `sample-actuals.csv` (P&L, 0 removed, 193 added). The template is a small CSV with the columns account_code, account_name, month and amount. | Recent imports does **not** show **who** ran an import; don't promise that. The template button gives the P&L template; for the balances template choose "Month-end balances" first. The download prompt appears. |
+
+## Final 2 minutes: Cash (Phase 4, on the preview)
+
+The Cash page is month-end cash, the net cash burn and Runway (the same figures as the KPI strip),
+up to 12 months of history, and a 12-month projection with the saved scenarios. It only reads;
+opening it writes nothing. `CASH_PAGE_LIVE` is on in the preview only.
+
+**Entity: Walkthrough Test 2**, budget "**Budget 2025 (stretch)**". Its three saved scenarios:
+- **Upside:** revenue +8%, payroll +4%;
+- **Downside:** revenue −12%, other costs +5%;
+- **Hiring plan:** revenue +15%, payroll +20%, other costs +5%.
+
+I worked out every figure below by hand in the engine tests and checked it on the preview and
+against the database (26 Nov 2026).
+
+| # | Time | Click | What the audience sees | Rough edges to avoid |
+|---|---|---|---|---|
+| 13 | 1:15 | **Entity switcher → Walkthrough Test 2 → Cash.** | **Header:** "Cash: Jan 2025 to Dec 2026", "Balances through Dec 2025. Actuals through Dec 2025." **1. Cash now:** Cash balance **€95,400.00**, Net cash burn **€12,150.00** a month ("net cash burn (includes loans and owner funding)", over Sep 2025 to Dec 2025), Runway **7.8**, the same as the KPI strip. **2. History and projection:** Jan–Dec 2025 month-end cash, from €106,670.15 in Jan up to €135,230.45 in Jul, then down to €95,400.00 in Dec. Then the dashed **Current trend**: €83,250.00 in Jan 2026 and **€22,500.00 in Jun 2026**. "**Current trend: cash runs out in Aug 2026 (month 8)**", marked on the chart. Dec 2026 is −€50,400.00. A table under the chart lists every month. **3. Scenarios as cash** (budget picked by itself): see the table below. | The projection starts after the latest balances (Dec 2025), not today, so most of it is already in the past. Say "a projection from the last balances, not a forecast". It is labelled "Projection (not a forecast)". |
+| 14 | 0:45 | **4. What-if (not saved):** change **Monthly net cash burn** to **8,000**, then **Reset**. | A dotted "What-if (not saved)" line and column: cash runs out in **Dec 2026** (−€600.00). Reset brings back €12,150.00. Nothing is saved. **5. Data quality:** "None", and "Figures come from the imported files; this is not a forecast or advice." | Type only digits, commas and a point; anything else shows "Enter an amount…". |
+
+**Scenarios as cash.** Each scenario is the Current trend plus its yearly net profit against Base, spread
+evenly over the 12 months:
+
+| Scenario | Net profit against Base (a year) | Cash at month 6 (Jun 2026) | Cash at month 12 (Dec 2026) | Cash runs out |
+|---|---|---|---|---|
+| Base (the Current trend) | — | €22,500.00 | −€50,400.00 | **Aug 2026** |
+| Upside | +€27,930.61 | €36,465.31 | −€22,469.39 | **Oct 2026** |
+| Downside | −€59,565.24 | −€7,282.62 | −€109,965.24 | **Jun 2026** |
+| Hiring plan | +€16,009.98 | €30,504.99 | −€34,390.02 | **Sep 2026** |
+
+The "Indicative: profit used as a proxy for cash; ignores timing, VAT, tax, capex and financing"
+caveat shows under the table.
+
+**Point to make:** the Hiring plan earns more profit than Base, but less than Upside, so it buys one
+extra month (Sep), not two.
+
+**Rough edges:**
+- **The scenarios are on a 2025 budget,** and the projection is 2026. The page says which budget and
+  year the profit difference comes from (`docs/reports/P4-0.md`, point 2).
+- **Walkthrough Test 1 has no balances,** so its Cash page only says "No month-end balances imported
+  yet". Don't demo cash on Test 1.
+- **The print to PDF** uses the Report's colour print style. As with the Report, I measured it rather
+  than seeing a PDF; check it once.
+
+### Do not click (Cash)
+
+- **Download CSV** live. It works, but it opens a download prompt.
+- **Cash on production,** before phase-4 is merged. It is still the placeholder there.
+- **Choosing "No budget" or "Review budget 2026"** in Scenarios as cash. It correctly shows "—" with
+  the reason, but it is a dead end in a demo.
 
