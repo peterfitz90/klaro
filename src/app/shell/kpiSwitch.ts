@@ -15,4 +15,4 @@ export const SCENARIOS_LIVE = true;
 
 // Phase 3: the monthly report on Report (src/features/report/ReportPage.tsx). Off until its own browser
 // walk-through passes (Peter, 26 Nov 2026). When false, Report shows its placeholder.
-export const REPORT_LIVE = false;
+export const REPORT_LIVE = true; // preview branch only, for the walk-through (phase-3 keeps it off until it passes)
