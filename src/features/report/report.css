@@ -21,6 +21,7 @@
 .report-chart .series-budget circle, .report-chart .series-budget rect,
 .report-legend .series-budget circle, .report-legend .series-budget rect { fill: var(--surface, #fff); stroke-width: 1.5; }
 .report-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.report-legend svg { width: 26px; height: 10px; flex: none; }
 .legend-item { display: inline-flex; align-items: center; gap: 4px; }
 .report-cash { display: grid; grid-template-columns: minmax(0, 2fr) minmax(140px, 1fr); gap: 12px; align-items: start; }
 .report-notes { margin: 0 0 0 18px; }
@@ -38,7 +39,12 @@
   .report, .report * { color: #000 !important; background: transparent !important; box-shadow: none !important; }
   .report .card, .report .kpi-card { border: 1px solid #999 !important; }
   .report .table-wrap { overflow: visible !important; }
-  .report table { width: 100%; font-size: 9pt; }
+  .report table { width: 100%; table-layout: auto; min-width: 0 !important; }
+  /* Measured at A4 content width (190 mm): 7.5pt cells keep the 11-column table inside the page. */
+  .report th, .report td, .report .mono { font-size: 7.5pt !important; padding: 2px 3px !important; white-space: normal !important; min-width: 0 !important; }
+  .report td.mono, .report .fav { white-space: nowrap !important; }
+  .report .card-body, .report .card-header { padding: 6px 8px !important; }
+  .report-charts { grid-template-columns: 1fr !important; }
   .report tr, .report .kpi-card, .report figure, .report .report-cash-side { break-inside: avoid; page-break-inside: avoid; }
   .report h2, .report h3 { break-after: avoid; page-break-after: avoid; }
   .report-section { break-inside: auto; }
