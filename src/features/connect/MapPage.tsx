@@ -10,11 +10,11 @@ import { callMessage } from '../../lib/errors';
 import { dataChanged } from '../../lib/dataEvents';
 import { useLoad } from '../../lib/useLoad';
 import { useCurrentEntity } from '../entities/context';
-import { accountMap, listConnections, listPlanLineDefs, setLineMap } from './api';
+import { accountMap, balanceAccounts, listConnections, listPlanLineDefs, setLineMap } from './api';
 import { BalanceMapping } from './BalanceMapping';
 import { ConnectTabs } from './ConnectPage';
 import { drCr, monthLabel, plural } from './format';
-import { editsByConnection, summarise, toAccounts, type Account } from './mapping';
+import { editsByConnection, pnlAccounts, summarise, toAccounts, type Account } from './mapping';
 
 const PAGE = 200;
 type Filter = 'all' | 'unmapped' | 'excluded';
@@ -24,8 +24,8 @@ export function MapPage() {
   const canEdit = role === 'owner' || role === 'editor';
   const ids = useId();
   const load = useLoad(async () => {
-    const [defs, rows, connections] = await Promise.all([listPlanLineDefs(), accountMap(entity.id), listConnections(entity.id)]);
-    return { defs, accounts: toAccounts(rows), connections };
+    const [defs, rows, connections, balances] = await Promise.all([listPlanLineDefs(), accountMap(entity.id), listConnections(entity.id), balanceAccounts(entity.id)]);
+    return { defs, accounts: pnlAccounts(toAccounts(rows), balances), connections };
   }, [entity.id], err => callMessage(err, 'mapping'));
 
   const [edits, setEdits] = useState<Map<string, string | null>>(new Map());

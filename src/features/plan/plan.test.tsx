@@ -233,6 +233,18 @@ describe('locking', () => {
   });
 });
 
+describe('the Drivers card text (pre-demo fix)', () => {
+  it('points to the Scenarios panel when it is on, and keeps the old text when it is off', async () => {
+    const { driversText } = await import('./PlanPage');
+    expect(driversText(true)).toBe('Scenarios above change revenue, payroll and other costs by a percentage. Monthly drivers, such as growth per month or headcount, come in a later phase.');
+    expect(driversText(false)).toBe('No drivers yet. Drivers are the assumptions behind the plan, such as growth per month or headcount; they come in a later phase.');
+    show();
+    // SCENARIOS_LIVE is on. Re-query after the budgets load (React reuses nodes between the loading and loaded layouts).
+    await waitFor(() => expect(screen.getByTestId('drivers-text').textContent).toBe(driversText(true)));
+    expect(screen.queryByText(/No drivers yet/)).toBeNull();
+  });
+});
+
 describe('editing lines by hand', () => {
   beforeEach(() => { versions = [V1]; lines = budget2026(['payroll-2026-03-01']); });
   it('revenue is shown and typed as a positive number and stored with the stored sign', async () => {

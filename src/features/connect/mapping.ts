@@ -3,7 +3,7 @@
 //   with actuals is unmapped (docs/ui-rules.md section 1).
 // - The excluded count and net total are always worked out, even when they are 0 (section 2).
 import { toCents } from '../../engine';
-import type { AccountRow } from './api';
+import type { AccountRow, BalanceAccountRow } from './api';
 
 export interface Account extends Omit<AccountRow, 'total'> {
   key: string;
@@ -34,6 +34,17 @@ export interface MappingSummary {
   excludedCount: number;
   excludedCents: bigint;
   complete: boolean;
+}
+
+/**
+ * The P&L list: every account, less those that only have month-end balances. fpa.account_map lists a
+ * mapped account with no actuals (months 0) so a mapping is never hidden; an account with balances
+ * and no P&L actuals belongs in the balance section only. An account whose P&L actuals were removed
+ * (no balances) stays, as before.
+ */
+export function pnlAccounts(rows: readonly Account[], balances: readonly Pick<BalanceAccountRow, 'connection_id' | 'account_code'>[]): Account[] {
+  const balanceOnly = new Set(balances.map(b => accountKey(b.connection_id, b.account_code)));
+  return rows.filter(r => r.months > 0 || !balanceOnly.has(r.key));
 }
 
 /** From the saved mapping (not unsaved edits). `rows` must be the whole list (every page). */
