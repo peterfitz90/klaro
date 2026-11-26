@@ -32,28 +32,76 @@
 }
 
 @media print {
+  /* Colour in print (Peter, 26 Nov 2026): a white page with dark text; colour only where it carries
+     meaning. The app's own hues (tokens.css: --accent, --info, --danger, --warn), darkened so text
+     and lines pass contrast on white (tested in report.test.tsx). Colour is never the only signal:
+     favourable/unfavourable keep their arrows and words, the charts keep their legend (with dashes
+     and marker shapes) and the values table. Printed whatever the "Background graphics" setting. */
   @page { size: A4; margin: 12mm; }
   html, body { background: #fff !important; color: #000 !important; }
   .sidebar, .topbar, .no-print, .content > .kpi-grid, .content > .msg { display: none !important; }
   .app, .main, .content { display: block !important; padding: 0 !important; margin: 0 !important; background: #fff !important; overflow: visible !important; height: auto !important; }
-  .report, .report * { color: #000 !important; background: transparent !important; box-shadow: none !important; }
-  .report .card, .report .kpi-card { border: 1px solid #999 !important; }
-  .report .table-wrap { overflow: visible !important; }
+
+  .report {
+    --print-accent: #047857;      /* --accent (#10b981), darkened: 5.5:1 on white */
+    --print-info: #1d4ed8;        /* --info (#60a5fa), darkened: 6.7:1 */
+    --print-good: #047857;        /* favourable: dark green */
+    --print-bad: #b91c1c;         /* --danger (#f87171), darkened: unfavourable, 6.5:1 */
+    --print-warn: #b45309;        /* --warn (#fbbf24), darkened: 5.0:1, the rule beside amber notes */
+    --print-bar: #059669;         /* the cash bars (a filled shape, labelled with its value in black) */
+    --print-tint-accent: #ecfdf5; /* tile tint */
+    --print-tint-head: #eef4f2;   /* table header tint */
+    --print-tint-warn: #fef3c7;   /* amber note tint */
+    --print-muted: #4b5563;       /* secondary text, 7.6:1 */
+  }
+  .report, .report * { color: #000 !important; background: transparent !important; box-shadow: none !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  .report .card, .report .kpi-card { border: 1px solid #9ca3af !important; }
+  .report .f-hint, .report .kpi-sub, .report .kpi-label, .report-entity { color: var(--print-muted) !important; }
+
+  /* Title and section headings: a coloured rule underneath. */
+  .report .report-title { border-bottom: 2px solid var(--print-accent) !important; padding-bottom: 4px; }
+  .report .card-header { border-bottom: 2px solid var(--print-accent) !important; }
+  .report .card-title { color: var(--print-accent) !important; }
+
+  /* KPI tiles: the accent bar on top (grey for "—"), on a light tint. */
+  .report .kpi-card { background: var(--print-tint-accent) !important; }
+  .report .kpi-card::before { background: var(--print-accent) !important; height: 3px; }
+  .report .kpi-card:has(.kpi-value[aria-label="No figure"])::before { background: #9ca3af !important; }
+
+  /* Tables: tinted header rows; favourable and unfavourable in colour, words and arrows kept. */
   .report table { width: 100%; table-layout: auto; min-width: 0 !important; }
+  .report thead th { background: var(--print-tint-head) !important; }
+  .report .row-total th, .report .row-total td { font-weight: 600; }
+  .report .fav-good { color: var(--print-good) !important; font-weight: 600; }
+  .report .fav-bad { color: var(--print-bad) !important; font-weight: 600; }
   /* Measured at A4 content width (190 mm): 7.5pt cells keep the 11-column table inside the page. */
   .report th, .report td, .report .mono { font-size: 7.5pt !important; padding: 2px 3px !important; white-space: normal !important; min-width: 0 !important; }
   .report td.mono, .report .fav { white-space: nowrap !important; }
   .report .card-body, .report .card-header { padding: 6px 8px !important; }
+  .report .table-wrap { overflow: visible !important; }
+
+  /* Data quality: any note (not "None") on a light amber tint. */
+  .report .report-notes { list-style: none; margin: 0 !important; padding: 0; }
+  .report .report-notes li { background: var(--print-tint-warn) !important; border-left: 3px solid var(--print-warn) !important; padding: 3px 6px; margin-bottom: 3px; }
+
+  /* Charts: revenue in the accent green, net profit in blue; the budget dashed in the matching colour
+     with hollow markers; cash bars in the accent colour. Axis and labels dark. */
   .report-charts { grid-template-columns: 1fr !important; }
-  .report tr, .report .kpi-card, .report figure, .report .report-cash-side { break-inside: avoid; page-break-inside: avoid; }
+  .report-chart .grid { stroke: #d1d5db !important; }
+  .report-chart .axis-zero { stroke: #000 !important; }
+  .report-chart .tick, .report-chart .bar-label { fill: #000 !important; }
+  .report-chart .bar { fill: var(--print-bar) !important; }
+  .report .series-revenue polyline, .report .report-legend .series-revenue line { stroke: var(--print-accent) !important; }
+  .report .series-revenue circle, .report .series-revenue rect { stroke: var(--print-accent) !important; fill: var(--print-accent) !important; }
+  .report .series-net-profit polyline, .report .report-legend .series-net-profit line { stroke: var(--print-info) !important; }
+  .report .series-net-profit circle, .report .series-net-profit rect { stroke: var(--print-info) !important; fill: var(--print-info) !important; }
+  .report .series-budget circle, .report .series-budget rect { fill: #fff !important; }
+  .report .series-budget polyline, .report .report-legend .series-budget line { stroke-dasharray: 5 4; }
+
+  /* Pages: about two A4 pages; rows, tiles and charts never split. */
+  .report tr, .report .kpi-card, .report figure, .report .report-cash-side, .report .report-notes li { break-inside: avoid; page-break-inside: avoid; }
   .report h2, .report h3 { break-after: avoid; page-break-after: avoid; }
   .report-section { break-inside: auto; }
   .report .kpi-grid { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 6px !important; }
-  .report-chart .grid { stroke: #ccc !important; }
-  .report-chart .axis-zero, .report-chart polyline, .report-legend line { stroke: #000 !important; }
-  .report-chart .tick, .report-chart .bar-label { fill: #000 !important; }
-  .report-chart .bar { fill: #888 !important; }
-  .report-chart circle, .report-chart rect:not(.bar), .report-legend circle, .report-legend rect { stroke: #000 !important; fill: #000 !important; }
-  .report-chart .series-budget circle, .report-chart .series-budget rect, .report-legend .series-budget circle, .report-legend .series-budget rect { fill: #fff !important; }
   .report a { text-decoration: none; }
 }
