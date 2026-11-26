@@ -13,3 +13,4 @@ export * from './kpi';
 export * from './cash';
 export * from './balances';
 export * from './scenarios';
+export * from './report';

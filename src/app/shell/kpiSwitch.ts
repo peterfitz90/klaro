@@ -12,3 +12,7 @@ export const CASH_KPIS_LIVE = true;
 // walk-through passed (Peter, 26 Nov 2026); it passed on the preview on 26 Nov 2026
 // (docs/reports/P3-LITE.md), so it is on. When false, nothing of it is shown.
 export const SCENARIOS_LIVE = true;
+
+// Phase 3: the monthly report on Report (src/features/report/ReportPage.tsx). Off until its own browser
+// walk-through passes (Peter, 26 Nov 2026). When false, Report shows its placeholder.
+export const REPORT_LIVE = false;

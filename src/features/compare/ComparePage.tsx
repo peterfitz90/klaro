@@ -79,19 +79,7 @@ export function ComparePage({ today }: { today?: Date } = {}) {
 
   function exportCsv() {
     if (!lines) return;
-    const amt = (c: bigint | null) => (c === null ? '' : toAmount(c));
-    const pct = (p: number | null) => (p === null ? '' : (Math.round(p * 10) / 10).toFixed(1));
-    const fav = (f: boolean | null) => (f === null ? '' : f ? 'favourable' : 'unfavourable');
-    const rows: CsvCell[][] = [['line', 'period', 'budget', 'actual', 'variance', 'variance_pct', 'favourable', 'note']];
-    for (const l of lines) {
-      for (const m of months) {
-        const c = l.months.get(m);
-        rows.push([l.label, m.slice(0, 7), amt(c?.budget ?? null), amt(c?.actual ?? null), amt(c?.variance ?? null), pct(c?.pct ?? null), fav(c?.favourable ?? null), maybeIncomplete(m) ? 'month may be incomplete' : '']);
-      }
-      const y = ytd(l);
-      rows.push([l.label, `YTD to ${shownMonth.slice(0, 7)}`, amt(y.budget), amt(y.actual), amt(y.variance), pct(y.pct), fav(y.favourable), '']);
-    }
-    downloadCSV(`compare-${shownYear.slice(0, 7)}-${versionName.replace(/[^A-Za-z0-9]+/g, '-')}.csv`, rows);
+    downloadCSV(`compare-${shownYear.slice(0, 7)}-${versionName.replace(/[^A-Za-z0-9]+/g, '-')}.csv`, compareCsvRows(lines, months, shownMonth, maybeIncomplete));
   }
 
   if (base.status === 'loading') return <p className="loading" role="status">Loading…</p>;
@@ -227,6 +215,27 @@ export function ComparePage({ today }: { today?: Date } = {}) {
       )}
     </>
   );
+}
+
+/**
+ * Compare's CSV rows: every line, every month of the year, then year to date to `shownMonth`. Shared
+ * with the monthly report (src/features/report), so both export the same figures.
+ */
+export function compareCsvRows(lines: readonly Line[], months: readonly Period[], shownMonth: Period, maybeIncomplete: (m: Period) => boolean): CsvCell[][] {
+  const ytdMonths = months.filter(m => m <= shownMonth);
+  const amt = (c: bigint | null) => (c === null ? '' : toAmount(c));
+  const pct = (p: number | null) => (p === null ? '' : (Math.round(p * 10) / 10).toFixed(1));
+  const fav = (f: boolean | null) => (f === null ? '' : f ? 'favourable' : 'unfavourable');
+  const rows: CsvCell[][] = [['line', 'period', 'budget', 'actual', 'variance', 'variance_pct', 'favourable', 'note']];
+  for (const l of lines) {
+    for (const m of months) {
+      const c = l.months.get(m);
+      rows.push([l.label, m.slice(0, 7), amt(c?.budget ?? null), amt(c?.actual ?? null), amt(c?.variance ?? null), pct(c?.pct ?? null), fav(c?.favourable ?? null), maybeIncomplete(m) ? 'month may be incomplete' : '']);
+    }
+    const y = sumCells(l.kind, ytdMonths.map(m => l.months.get(m)));
+    rows.push([l.label, `YTD to ${shownMonth.slice(0, 7)}`, amt(y.budget), amt(y.actual), amt(y.variance), pct(y.pct), fav(y.favourable), '']);
+  }
+  return rows;
 }
 
 function MonthTable({ lines, month, ytd, money, ytdLabel }: {
