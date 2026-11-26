@@ -96,7 +96,7 @@ function query(table: string) {
       } else if (table === 'plan_line_defs') {
         data = DEFS;
       } else if (table === 'sync_runs') {
-        data = slice(syncRuns.filter(r => r.connection_id === filters.connection_id).reverse(), range);
+        data = slice(syncRuns.filter(r => r.connection_id === filters.connection_id && (filters.kind === undefined || r.kind === filters.kind)).reverse(), range);
       } else {
         data = [];
       }
