@@ -60,9 +60,10 @@ CREATE TRIGGER zz_test_fail BEFORE INSERT ON fpa.balances_monthly FOR EACH ROW E
 -- One import row.
 CREATE FUNCTION fpa_test.r(p_code text, p_month text, p_amount text, p_name text DEFAULT NULL) RETURNS jsonb LANGUAGE sql AS $$
   SELECT jsonb_strip_nulls(jsonb_build_object('account_code', p_code, 'month', p_month, 'amount', p_amount, 'account_name', p_name)); $$;
--- cash_position as one line of text, newest month first: 'latest|available|unmapped' then 'month:has:cash' x5.
+-- cash_position as one line of text, newest month first: 'latest|available|unmapped|cash_accounts' then
+-- 'month:has:cash' x5.
 CREATE FUNCTION fpa_test.cash(p_entity uuid) RETURNS text LANGUAGE sql AS $$
-  SELECT coalesce(min(c.latest_month)::text || '|' || min(c.months_available) || '|' || min(c.unmapped_accounts) || ' '
+  SELECT coalesce(min(c.latest_month)::text || '|' || min(c.months_available) || '|' || min(c.unmapped_accounts) || '|' || min(c.cash_accounts) || ' '
          || string_agg(format('%s:%s:%s', to_char(c.month, 'YYYY-MM'), c.has_balances::text, coalesce(c.cash::text, 'null')), ' ' ORDER BY c.month DESC), 'none')
     FROM fpa.cash_position(p_entity) c; $$;
 -- The 0003 variance, exactly as applied (db/bundle.mjs inserts its text, renamed into fpa_test), to show
@@ -77,7 +78,7 @@ DO $test$
 DECLARE
   v_who constant text[] := ARRAY['user_ownerA', 'user_editorA', 'user_viewerA', 'user_inactiveA', 'user_outsider', 'user_ownerB', 'anon', 'service_role'];
   e_edit constant text[] := ARRAY['ok:1', 'ok:1', 'PT403', 'PT403', 'PT403', 'PT403', '42501', '42501'];
-  v_ea uuid; v_eb uuid; v_ec uuid; v_ed uuid; v_pa uuid; v_pb uuid; v_ca uuid; v_ca2 uuid; v_ca3 uuid; v_cb uuid; v_cc uuid; v_cd uuid;
+  v_ea uuid; v_eb uuid; v_ec uuid; v_ed uuid; v_ee uuid; v_ce uuid; v_pa uuid; v_pb uuid; v_ca uuid; v_ca2 uuid; v_ca3 uuid; v_cb uuid; v_cc uuid; v_cd uuid;
   v_va uuid; v_va2 uuid; v_sa uuid; v_sa_other uuid; v_sa2 uuid; v_vb uuid; v_sb uuid;
   l1 uuid; l2 uuid; l3 uuid; l_other uuid; l_v2 uuid; l_b uuid;
   v_res jsonb; v_got text; v_exp text; v_n bigint; v_sum numeric; v_before text; v_rows jsonb; v_conn_before text; i int;
@@ -286,16 +287,16 @@ BEGIN
     fpa_test.r('1100', '2025-09-01', '666.66'), fpa_test.r('2200', '2025-09-01', '-555.55'),
     fpa_test.r('1200', '2025-10-01', '7200.00'), fpa_test.r('1210', '2025-10-01', '2500.00'), fpa_test.r('1220', '2025-10-01', '0.00'), fpa_test.r('1250', '2025-10-01', '25.00'),
     fpa_test.r('1100', '2025-10-01', '555.55'), fpa_test.r('2200', '2025-10-01', '-444.44')), 'c.csv');
-  -- Before any mapping: no cash account, so every month with balances has cash 0 (not null), and all
-  -- six latest-month accounts are unmapped.
+  -- Before any mapping: no cash account (cash_accounts 0), so every month with balances has cash 0
+  -- (not null), and all six latest-month accounts are unmapped.
   v_got := fpa_test.cash(v_ec);
-  PERFORM fpa_test.check(v_got = '2025-10-01|5|6 2025-10:true:0 2025-09:true:0 2025-08:true:0 2025-07:true:0 2025-06:true:0',
-    'cash_position before mapping: cash 0 in each month with balances; 6 unmapped', v_got);
+  PERFORM fpa_test.check(v_got = '2025-10-01|5|6|0 2025-10:true:0 2025-09:true:0 2025-08:true:0 2025-07:true:0 2025-06:true:0',
+    'cash_position before mapping: cash_accounts 0; cash 0 in each month with balances; 6 unmapped', v_got);
   PERFORM fpa.set_line_map(v_cc, '[{"account_code": "1200", "plan_line": "cash_bank"}, {"account_code": "1210", "plan_line": "cash_bank"},
     {"account_code": "1220", "plan_line": "cash_bank"}, {"account_code": "1250", "plan_line": "cash_bank"}, {"account_code": "1100", "plan_line": "excluded"}]'::jsonb);
   v_got := fpa_test.cash(v_ec);
-  PERFORM fpa_test.check(v_got = '2025-10-01|5|1 2025-10:true:9725.00 2025-09:true:10830.25 2025-08:true:12200.50 2025-07:true:13640.00 2025-06:true:14550.00',
-    'cash_position matches the hand-computed table (excluded and unmapped accounts not counted; overdraft lowers cash; a missing cash row is 0)', v_got);
+  PERFORM fpa_test.check(v_got = '2025-10-01|5|1|4 2025-10:true:9725.00 2025-09:true:10830.25 2025-08:true:12200.50 2025-07:true:13640.00 2025-06:true:14550.00',
+    'cash_position matches the hand-computed table (excluded and unmapped accounts not counted; overdraft lowers cash; a missing cash row is 0); cash_accounts 4 (1100 excluded and 2200 unmapped not counted)', v_got);
   PERFORM fpa_test.as_user('user_viewerC');
   PERFORM fpa_test.check(fpa_test.cash(v_ec) = v_got, 'a viewer gets the same cash position');
   FOR i IN 1 .. 6 LOOP
@@ -314,12 +315,35 @@ BEGIN
     fpa_test.r('1200', '2025-06-01', '100.00'), fpa_test.r('1200', '2025-07-01', '90.00'), fpa_test.r('1200', '2025-09-01', '70.00'), fpa_test.r('1200', '2025-10-01', '60.00')), 'd.csv');
   PERFORM fpa.set_line_map(v_cd, '[{"account_code": "1200", "plan_line": "cash_bank"}]'::jsonb);
   v_got := fpa_test.cash(v_ed);
-  PERFORM fpa_test.check(v_got = '2025-10-01|4|0 2025-10:true:60.00 2025-09:true:70.00 2025-08:false:null 2025-07:true:90.00 2025-06:true:100.00',
-    'a month never imported has no cash (null), not zero; months_available counts only imported months', v_got);
+  PERFORM fpa_test.check(v_got = '2025-10-01|4|0|1 2025-10:true:60.00 2025-09:true:70.00 2025-08:false:null 2025-07:true:90.00 2025-06:true:100.00',
+    'a month never imported has no cash (null), not zero; months_available counts only imported months; one cash account: cash_accounts 1', v_got);
+  -- Entity E: cash_accounts tells "not set up" from "zero". Accounts: 1200 (Sep, Oct), 1210 (Sep only),
+  -- 1100 (Sep, Oct), 2200 (Oct, never mapped). First everything mapped is excluded: cash 0 and
+  -- cash_accounts 0. Then 1200 and 1210 go to Cash and bank: cash_accounts 1, because 1210 has no row in
+  -- the latest month (October); September's cash is 500.00 + 50.00.
+  v_ee := fpa.create_entity('Echo Test Ltd', 'IE', 'EUR', 1::smallint);
+  INSERT INTO fpa.connections (entity_id, source_type) VALUES (v_ee, 'csv') RETURNING id INTO v_ce;
+  PERFORM fpa.import_balances(v_ee, v_ce, jsonb_build_array(
+    fpa_test.r('1200', '2025-09-01', '500.00'), fpa_test.r('1210', '2025-09-01', '50.00'), fpa_test.r('1100', '2025-09-01', '9.99'),
+    fpa_test.r('1200', '2025-10-01', '400.00'), fpa_test.r('1100', '2025-10-01', '8.88'), fpa_test.r('2200', '2025-10-01', '-1.11')), 'e.csv');
+  PERFORM fpa.set_line_map(v_ce, '[{"account_code": "1200", "plan_line": "excluded"}, {"account_code": "1210", "plan_line": "excluded"},
+    {"account_code": "1100", "plan_line": "excluded"}]'::jsonb);
+  v_got := fpa_test.cash(v_ee);
+  PERFORM fpa_test.check(v_got = '2025-10-01|2|1|0 2025-10:true:0 2025-09:true:0 2025-08:false:null 2025-07:false:null 2025-06:false:null',
+    'every account mapped to excluded (or unmapped): cash_accounts 0 with cash 0, so "not set up" is distinguishable from zero', v_got);
+  PERFORM fpa.set_line_map(v_ce, '[{"account_code": "1200", "plan_line": "cash_bank"}, {"account_code": "1210", "plan_line": "cash_bank"}]'::jsonb);
+  v_got := fpa_test.cash(v_ee);
+  PERFORM fpa_test.check(v_got = '2025-10-01|2|1|1 2025-10:true:400.00 2025-09:true:550.00 2025-08:false:null 2025-07:false:null 2025-06:false:null',
+    'cash_accounts counts only Cash and bank accounts with a row in the latest month (1210 has none in October)', v_got);
+  FOR i IN 1 .. 8 LOOP
+    PERFORM fpa_test.as_user(v_who[i]);
+    v_got := fpa_test.val(format('SELECT count(*)::text FROM fpa.cash_position(%L)', v_ee));
+    PERFORM fpa_test.check(v_got = CASE WHEN i <= 6 THEN '0' ELSE '42501' END, 'cash_position (with cash_accounts) of E as ' || v_who[i], v_got);
+  END LOOP;
   -- A's cash position (1200 mapped to Cash and bank in section 7; latest month 2025-04).
   PERFORM fpa_test.as_user('user_ownerA');
   v_got := fpa_test.cash(v_ea);
-  PERFORM fpa_test.check(v_got = '2025-04-01|4|1 2025-04:true:7000.00 2025-03:true:8000.00 2025-02:true:9100.00 2025-01:true:10000.00 2024-12:false:null',
+  PERFORM fpa_test.check(v_got = '2025-04-01|4|1|1 2025-04:true:7000.00 2025-03:true:8000.00 2025-02:true:9100.00 2025-01:true:10000.00 2024-12:false:null',
     'A''s cash position: 1200 only (1210 unmapped, 1100 excluded); the month before the first import has no cash (null)', v_got);
 
   -- ── 9. Variance leaves Cash and bank out; nothing else changes ──

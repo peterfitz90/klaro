@@ -1,7 +1,7 @@
 -- Rolled-back test of db/rollback/0004_down.sql. Runs after 0004 and its fpa.schema_migrations row
 -- inside one transaction (db/bundle.mjs builds db/out/test_down_0004.sql, puts the rollback script in
 -- v_down, the 0003 apply checks in v_checks_0003 and the 0003 variance body hash in v_variance_md5).
--- Ends by raising its result, so everything rolls back. Expect "0 failure(s), 9 pass(es)".
+-- Ends by raising its result, so everything rolls back. Expect "0 failure(s), 8 pass(es)".
 DO $t$
 DECLARE
   v_f text[] := '{}'; v_p int := 0;

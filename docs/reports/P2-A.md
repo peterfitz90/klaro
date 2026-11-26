@@ -1,6 +1,129 @@
 # P2-A: Phase 2A database (0004), built and tested, NOT applied
 
-Date: 25 Nov 2026. Branch: `phase-2`. Status: **waiting for your approval.** 0004 has not been applied.
+## Round 2 (26 Nov 2026): `cash_position.cash_accounts`
+
+Status: **waiting for your approval to apply.** 0004 has not been applied.
+
+### Your answers to round 1 (recorded; they shape 2B, not 0004)
+
+- **Cash balance** = cash at the latest month with balances, labelled "Balances through [month]", plus
+  "Actuals through [month]" when the two differ.
+- **Burn and Runway** show "—" unless balances exist for each of m−3, m−2, m−1 and m.
+- **Burning cash with cash at or below zero:** Runway shows 0.0, with the note "Cash is zero or
+  overdrawn" under the tile.
+- **For 2B, after the apply is approved:**
+  - Cash balance and Runway show "—" with "Map your bank accounts to Cash and bank" when
+    `cash_accounts` is 0. They never show 0.00 or "n/a" in that state.
+  - While any balance account in the latest month is unmapped, the Cash tile says "Incomplete: N
+    balance accounts unmapped".
+  - The balances import preview warns, and does not block, when an account already mapped to Cash and
+    bank has no row in a month of the file. Example: "Account 1200 has no row for Nov 2025; its balance
+    will count as 0". This will be tested.
+
+### What changed against the version reviewed in round 1
+
+0004's sha256 went from `37a191a2…6e07` to **`946fd7b686aeeb0515058ab410e14c0fc307011796feb5aff2deb7abea260333`**.
+This is the full diff:
+
+1. **`fpa.cash_position`:**
+   - **A new output column, `cash_accounts integer`,** placed after `unmapped_accounts`. The returned
+     columns are now: latest_month, months_available, unmapped_accounts, **cash_accounts**, month,
+     has_balances, cash.
+   - **A new CTE, `cash_n`:** it counts the balance rows in the latest month whose account is mapped
+     to `cash_bank` (a row is unique per connection, account and month, so this is a count of
+     accounts). It is cross-joined like `unm`.
+   - **The header comment** explains the column: 0 means "not set up".
+   - Nothing else in the function changed: the cash sums, nulls for months never imported, the five
+     months, and invoker rights.
+2. **Nothing else in 0004 changed.**
+   - The `variance` text is unchanged; its 0004 body hash is still `cf5f1382…`.
+   - The other functions, grants, policies and the table are unchanged.
+3. **`db/apply_checks_0004.sql`:** one new check. `pg_get_function_result(fpa.cash_position(uuid))`
+   must equal exactly
+   `TABLE(latest_month date, months_available integer, unmapped_accounts integer, cash_accounts integer, month date, has_balances boolean, cash numeric)`.
+   If it doesn't, nothing commits. No other check changed.
+4. **`db/rollback/0004_down.sql`:** unchanged. It drops `fpa.cash_position(uuid)` by its argument
+   list, which didn't change. The rollback bundle is rebuilt because it embeds the new 0004.
+5. **`db/tests/0004_down.test.sql`:** the header now says "expect 8 passes", which is correct.
+6. **`db/tests/0004_phase2.test.sql`:** 10 new checks, and `cash_accounts` added to every existing cash
+   check.
+   - The helper's summary line now carries `cash_accounts`, so every cash check asserts it:
+     - entity C before mapping: **0**;
+     - entity C after mapping: **4**. 1200, 1210, 1220 and 1250 count; 1100 (excluded) and 2200
+       (unmapped) don't;
+     - entity D, one cash account: **1**;
+     - entity A: **1**;
+     - a viewer gets the same line as the owner.
+   - **New entity E:**
+     - every account mapped to excluded, or not mapped: `cash_accounts` **0** with cash 0. "Not set
+       up" can now be told apart from zero;
+     - then 1200 and 1210 are mapped to Cash and bank, and the count is **1**, because 1210 has no
+       row in the latest month. September's cash is 550.00;
+     - roles: all 8 tried. Members of other entities, the inactive member and the outsider get no
+       rows; anon and service_role are refused (42501).
+7. **`docs/reports/P2-0.md`:** the expected-differences list now also has the trigger count (17) and
+   the policy count (43), so it is complete.
+
+### Results (all rolled back, every send byte-checked against these files)
+
+| Bundle | sha256 | Result |
+|---|---|---|
+| `apply_0004.sql` (**the apply bundle**) | `2c721ddd852c3d65…` | not run: it is what gets applied |
+| `dryrun_apply_0004.sql` | `46d329e7cc6919f7…` | **0 failures, 15 passes**: the checks pass on the applied state and refuse all 14 injected faults. plpgsql_check: 14 functions, **0 findings** |
+| `test_0004.sql` | `14c9af52e5e5f9ad…` | **0 failures, 153 passes** (143 + 10 new) |
+| `test_down_0004.sql` | `d52608329cea3326…` | **0 failures, 8 passes** (all of them) |
+| `test_0003_on_0004.sql` | `c6d01911f1a262b2…` | 264 passes, 12 failures. Exactly the 12 now listed in P2-0, with the same messages as round 1; no Phase 1 behaviour check failed |
+| `timing_0004.sql` | `15bdbd85ede11ab1…` | every call under 8 s (below) |
+
+**Grants evidence:** `db/tests/GRANTS_EVIDENCE_0004.txt` was regenerated from this run. It is the same
+line for line as round 1; only the pass count changed.
+
+**Timings** (worst of 3, as `authenticated` under the 8 s timeout; 54 entities, 260,000 balance rows,
+275,193 actual rows):
+
+| Call | Round 2 | Round 1 |
+|---|---|---|
+| `import_balances` (20,000 rows) | 2,873 ms | 1,447 ms |
+| `balance_accounts` | 266 ms | 159 ms |
+| `cash_position` | 61 ms | 47 ms |
+| `save_budget_lines` (1,200 lines) | 2,359 ms | 2,395 ms |
+| `variance` | 179 ms | 155 ms |
+
+The import is the same code as in round 1, so the slower time is load on the shared database between
+runs; its three runs were 2,418, 2,114 and 2,873 ms. The slowest call is still about a third of the
+limit. `cash_position`, the only function that changed, is still under 0.1 s.
+
+**Connector confirmations this round:** the connector asked for confirmation on `test_0004.sql`, not on
+the rollback test. The first request expired with nothing run, and the second ran. The rollback test
+ran without a prompt.
+
+**Database after testing** (read-only check, 26 Nov):
+- Supabase migration history: **102**.
+- `fpa.schema_migrations`: 0001 and 0003 only.
+- No `balances_monthly` table and no `fpa_test` schema.
+- 13 plan lines and 27 functions.
+- The `variance` hash is still the applied 0003 one (`e2f4425c…`).
+- Nothing was deleted.
+
+### For you to decide
+
+**Approve applying 0004?** If yes, I send `db/out/apply_0004.sql` (sha256 `2c721ddd852c3d65…`) exactly,
+then:
+- the byte-check;
+- the read-only after-check: history still 102; three rows in `schema_migrations` with matching
+  checksums; function hashes match the repo;
+- the anon-key smoke test, reported in `P2-A-smoke.md`.
+
+After that I'll stop again before 2B.
+
+---
+
+## Round 1 (25 Nov 2026), as reviewed
+
+The sections below are the round-1 report, kept as reviewed. Its sha256 values and results are
+superseded by round 2 above. Its questions are answered.
+
+Date: 25 Nov 2026. Branch: `phase-2`.
 Every run below was a rolled-back transaction, sent through the Supabase connector as the exact text of
 a file in `db/out/`. The byte-check (`scripts/check-sent.mjs`) confirms each send matched its file's
 sha256.

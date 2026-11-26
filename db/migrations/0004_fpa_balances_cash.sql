@@ -182,12 +182,14 @@ $$;
 --   cash           the sum of the closing balances of accounts mapped to Cash and bank, in display
 --                  sign (positive money in the bank); 0 if the month has balances but no cash account
 --                  row; NULL if the month has no balances at all (never imported: not zero);
--- and on every row: latest_month, months_available (distinct months with balances) and
--- unmapped_accounts (accounts with balances in the latest month and no mapping). Runs as the caller:
--- row security applies, so a non-member gets no rows. Burn and runway are worked out in src/engine.
+-- and on every row: latest_month, months_available (distinct months with balances),
+-- unmapped_accounts (accounts with balances in the latest month and no mapping) and cash_accounts
+-- (accounts mapped to Cash and bank with a balance row in the latest month: 0 means "not set up",
+-- which the screen must tell apart from cash that is truly zero). Runs as the caller: row security
+-- applies, so a non-member gets no rows. Burn and runway are worked out in src/engine.
 CREATE FUNCTION fpa.cash_position(p_entity_id uuid)
-RETURNS TABLE (latest_month date, months_available integer, unmapped_accounts integer, month date,
-               has_balances boolean, cash numeric)
+RETURNS TABLE (latest_month date, months_available integer, unmapped_accounts integer, cash_accounts integer,
+               month date, has_balances boolean, cash numeric)
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path = fpa, pg_temp AS $$
   WITH bal AS MATERIALIZED (
     SELECT b.connection_id, b.account_code, b.period, b.closing_balance
@@ -198,6 +200,11 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = fpa, pg_temp AS $$
     SELECT count(*)::integer AS n FROM bal x, head h
      WHERE x.period = h.latest
        AND NOT EXISTS (SELECT 1 FROM fpa.line_map m WHERE m.connection_id = x.connection_id AND m.account_code = x.account_code)),
+  cash_n AS (
+    SELECT count(*)::integer AS n FROM bal x, head h
+     WHERE x.period = h.latest
+       AND EXISTS (SELECT 1 FROM fpa.line_map m WHERE m.connection_id = x.connection_id AND m.account_code = x.account_code
+                     AND m.plan_line = 'cash_bank')),
   mon AS (
     SELECT (h.latest - make_interval(months => k))::date AS p FROM head h, generate_series(0, 4) AS k WHERE h.latest IS NOT NULL),
   months_with AS (SELECT DISTINCT x.period AS p FROM bal x),
@@ -207,9 +214,9 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = fpa, pg_temp AS $$
       JOIN fpa.line_map m ON m.connection_id = x.connection_id AND m.account_code = x.account_code
       JOIN fpa.plan_line_defs d ON d.key = m.plan_line AND d.key = 'cash_bank'
      GROUP BY x.period, d.display_sign)
-  SELECT h.latest, h.n, u.n, mo.p, (w.p IS NOT NULL),
+  SELECT h.latest, h.n, u.n, cn.n, mo.p, (w.p IS NOT NULL),
          CASE WHEN w.p IS NULL THEN NULL ELSE coalesce(c.amt, 0) END
-    FROM mon mo CROSS JOIN head h CROSS JOIN unm u
+    FROM mon mo CROSS JOIN head h CROSS JOIN unm u CROSS JOIN cash_n cn
     LEFT JOIN months_with w ON w.p = mo.p
     LEFT JOIN cash c ON c.p = mo.p
    ORDER BY mo.p DESC;

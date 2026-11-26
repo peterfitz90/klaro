@@ -106,6 +106,10 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.oid = 'fpa.import_balances(uuid,uuid,jsonb,text)'::regprocedure AND p.prosecdef AND p.provolatile = 'v') THEN
     v_bad := v_bad || 'fpa.import_balances is not a VOLATILE SECURITY DEFINER function'::text;
   END IF;
+  IF pg_get_function_result(to_regprocedure('fpa.cash_position(uuid)')) IS DISTINCT FROM
+     'TABLE(latest_month date, months_available integer, unmapped_accounts integer, cash_accounts integer, month date, has_balances boolean, cash numeric)' THEN
+    v_bad := v_bad || 'fpa.cash_position does not return the reviewed columns (including cash_accounts)'::text;
+  END IF;
   -- The Phase 1 functions 0004 does not touch keep their applied bodies; variance is exactly the 0004 text.
   IF (SELECT string_agg(p.proname || ':' || md5(p.prosrc), ',' ORDER BY p.proname) FROM pg_proc p
        WHERE p.pronamespace = 'fpa'::regnamespace
