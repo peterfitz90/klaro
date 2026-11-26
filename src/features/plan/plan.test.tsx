@@ -24,6 +24,7 @@ const planApi = {
   createBudget: vi.fn(async () => V1.id),
   setLocked: vi.fn(async (_id: string, locked: boolean) => ({ ...V1, locked_at: locked ? '2026-01-07T10:00:00Z' : null })),
   editLine: vi.fn(async () => undefined),
+  saveBudgetLines: vi.fn(async (_v: string, l: unknown[]) => l.length),
   variance: vi.fn(async () => ACTUALS),
 };
 vi.mock('./api', () => planApi);
@@ -58,6 +59,7 @@ beforeEach(() => {
   planApi.variance.mockImplementation(async () => ACTUALS);
   planApi.createBudget.mockImplementation(async () => V1.id);
   planApi.editLine.mockImplementation(async () => undefined);
+  planApi.saveBudgetLines.mockImplementation(async (_v: string, l: unknown[]) => l.length);
 });
 afterEach(cleanup);
 
@@ -232,9 +234,10 @@ describe('editing lines by hand', () => {
     fireEvent.change(cell, { target: { value: '1,500' } });
     fireEvent.change(screen.getByLabelText('Payroll, Feb 2026'), { target: { value: '450' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save 2 changes' }));
-    await waitFor(() => expect(planApi.editLine).toHaveBeenCalledTimes(2));
-    expect(planApi.editLine).toHaveBeenCalledWith('revenue-2026-01-01', '-1500.00');
-    expect(planApi.editLine).toHaveBeenCalledWith('payroll-2026-02-01', '450.00');
+    // Phase 2: one all-or-nothing call (fpa.save_budget_lines), not one call per line.
+    await waitFor(() => expect(planApi.saveBudgetLines).toHaveBeenCalledTimes(1));
+    expect(planApi.saveBudgetLines).toHaveBeenCalledWith(V1.id, [{ id: 'revenue-2026-01-01', amount: '-1500.00' }, { id: 'payroll-2026-02-01', amount: '450.00' }]);
+    expect(planApi.editLine).not.toHaveBeenCalled();
     expect(await screen.findByText('Saved 2 changes.')).toBeTruthy();
   });
   it('lines edited by hand are marked', async () => {
@@ -247,29 +250,40 @@ describe('editing lines by hand', () => {
     fireEvent.change(await screen.findByLabelText('Revenue, Jan 2026'), { target: { value: 'abc' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save 1 change' }));
     expect((await screen.findByRole('alert')).textContent).toContain('Revenue, Jan 2026:');
-    expect(planApi.editLine).not.toHaveBeenCalled();
+    expect(planApi.saveBudgetLines).not.toHaveBeenCalled();
   });
-  it('a timeout while saving says the budget wording', async () => {
-    planApi.editLine.mockImplementationOnce(async () => { throw timeout(); });
+  it('a timeout while saving: nothing was saved, the budget wording, and the edits stay', async () => {
+    planApi.saveBudgetLines.mockImplementationOnce(async () => { throw timeout(); });
     show();
     fireEvent.change(await screen.findByLabelText('Revenue, Jan 2026'), { target: { value: '1,500' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save 1 change' }));
-    expect((await screen.findByRole('alert')).textContent).toBe('This took too long. Nothing was changed. Try again, and if it keeps happening, tell us.');
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Nothing was saved. This took too long. Try again, and if it keeps happening, tell us. Your 1 change is still here: press Save to try again.');
+    expect((screen.getByLabelText('Revenue, Jan 2026') as HTMLInputElement).value).toBe('1,500');
   });
-  // Gate 1 fix 3: a save that fails partway keeps the lines that did not save, so one click retries.
-  it('if saving fails partway, the unsaved lines stay as edits and one click retries them', async () => {
-    planApi.editLine.mockImplementationOnce(async () => undefined).mockImplementationOnce(async () => { throw timeout(); });
+  // Phase 2 (replaces the Gate 1 partial-save behaviour): the save is all or nothing.
+  it('if the save is refused, nothing was saved, every edit stays, and one click retries them all', async () => {
+    planApi.saveBudgetLines.mockImplementationOnce(async () => { throw Object.assign(new Error('Line 2: that line is not a budget line of this version.'), { code: 'PT400' }); });
     show();
     fireEvent.change(await screen.findByLabelText('Revenue, Jan 2026'), { target: { value: '1,500' } });
     fireEvent.change(screen.getByLabelText('Payroll, Feb 2026'), { target: { value: '450' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save 2 changes' }));
-    expect((await screen.findByRole('alert')).textContent).toContain('1 change of 2 was saved; the other was not.');
-    await waitFor(() => expect((screen.getByLabelText('Payroll, Feb 2026') as HTMLInputElement).value).toBe('450'));
-    expect(screen.getByRole('button', { name: 'Save 1 change' })).toBeTruthy();
+    const alert = (await screen.findByRole('alert')).textContent ?? '';
+    expect(alert).toMatch(/^Nothing was saved\./);
+    expect(alert).toContain('Your 2 changes are still here');
+    expect((screen.getByLabelText('Revenue, Jan 2026') as HTMLInputElement).value).toBe('1,500');
+    expect((screen.getByLabelText('Payroll, Feb 2026') as HTMLInputElement).value).toBe('450');
+    fireEvent.click(screen.getByRole('button', { name: 'Save 2 changes' }));
+    await waitFor(() => expect(planApi.saveBudgetLines).toHaveBeenCalledTimes(2));
+    expect(planApi.saveBudgetLines).toHaveBeenLastCalledWith(V1.id, [{ id: 'revenue-2026-01-01', amount: '-1500.00' }, { id: 'payroll-2026-02-01', amount: '450.00' }]);
+    expect(await screen.findByText('Saved 2 changes.')).toBeTruthy();
+  });
+  it('a budget locked meanwhile (PT423) says so; nothing was saved', async () => {
+    planApi.saveBudgetLines.mockImplementationOnce(async () => { throw Object.assign(new Error('This version is locked. Unlock it first.'), { code: 'PT423' }); });
+    show();
+    fireEvent.change(await screen.findByLabelText('Revenue, Jan 2026'), { target: { value: '1,500' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save 1 change' }));
-    await waitFor(() => expect(planApi.editLine).toHaveBeenCalledTimes(3));
-    expect(planApi.editLine).toHaveBeenLastCalledWith('payroll-2026-02-01', '450.00');
-    expect(await screen.findByText('Saved 1 change.')).toBeTruthy();
+    expect((await screen.findByRole('alert')).textContent).toContain('Nothing was saved. This budget is locked. Unlock it first.');
   });
   it('the calculated lines follow the edits (display sign: revenue less costs)', async () => {
     show();

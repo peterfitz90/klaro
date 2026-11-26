@@ -2,7 +2,10 @@
 // through src/lib/db.ts under row security; every error is thrown to the caller. Lists that can be
 // long (accounts) are read a page at a time until a short page (docs/ui-rules.md section 1).
 import { assertComplete, db, DbError, must, pageAll, page } from '../../lib/db';
-import type { PayloadRow, Period } from '../../engine';
+import { toCents, type CashRow, type PayloadRow, type Period } from '../../engine';
+
+/** What a file holds: P&L movements (fpa.import_actuals) or month-end balances (fpa.import_balances, 0004). */
+export type ImportKind = 'actuals' | 'balances';
 
 export interface Connection {
   id: string;
@@ -55,10 +58,11 @@ export interface SyncRun {
   rows_added: number;
   status: 'succeeded' | 'failed';
   created_at: string;
+  kind: ImportKind;
 }
-const RUN_COLUMNS = 'id,source_name,months_replaced,rows_removed,rows_added,status,created_at';
+const RUN_COLUMNS = 'id,source_name,months_replaced,rows_removed,rows_added,status,created_at,kind';
 
-/** The latest imports into a connection, newest first (an explicit, labelled page of 10). */
+/** The latest imports into a connection, newest first (an explicit, labelled page of 10), P&L and balances. */
 export async function recentImports(connectionId: string, count = 10): Promise<SyncRun[]> {
   const [from, to] = page(0, count);
   const rows = await must(
@@ -69,10 +73,10 @@ export async function recentImports(connectionId: string, count = 10): Promise<S
   return rows as SyncRun[];
 }
 
-/** Every month already imported into a connection (from its whole import log, paged). */
-export async function importedMonths(connectionId: string): Promise<Set<Period>> {
+/** Every month already imported into a connection for one kind of file (from its whole import log, paged). */
+export async function importedMonths(connectionId: string, kind: ImportKind = 'actuals'): Promise<Set<Period>> {
   const runs = await pageAll<{ months_replaced: Period[]; status: string }>(
-    (from, to) => db().from('sync_runs').select('months_replaced,status').eq('connection_id', connectionId)
+    (from, to) => db().from('sync_runs').select('months_replaced,status').eq('connection_id', connectionId).eq('kind', kind)
       .order('created_at', { ascending: true }).order('id', { ascending: true }).range(from, to),
     'read the import log',
   );
@@ -106,12 +110,38 @@ export async function importActuals(entityId: string, connectionId: string, rows
   return r as ImportResult;
 }
 
+export interface BalanceImportResult {
+  sync_run_id: string;
+  months_replaced: Period[];
+  rows_removed: number;
+  rows_added: number;
+  balances_through: Period;
+  imported_at: string;
+}
+
+/**
+ * Sends checked month-end balances to fpa.import_balances (0004): one transaction that replaces every
+ * month in the file for this connection, or changes nothing. Rows use the same shape as actuals
+ * (amount = the closing balance, trial-balance sign).
+ */
+export async function importBalances(entityId: string, connectionId: string, rows: PayloadRow[], sourceName: string): Promise<BalanceImportResult> {
+  const res = await must(
+    db().rpc('import_balances', { p_entity_id: entityId, p_connection_id: connectionId, p_rows: rows, p_source_name: sourceName }),
+    'import balances',
+  );
+  const r = res as Partial<BalanceImportResult> | null;
+  if (!r || typeof r.sync_run_id !== 'string' || !Array.isArray(r.months_replaced) || typeof r.rows_added !== 'number' || typeof r.rows_removed !== 'number') {
+    throw new DbError('import balances', { message: 'the database did not confirm the import' });
+  }
+  return r as BalanceImportResult;
+}
+
 // ── Mapping ─────────────────────────────────────────────────────────────────────────────────
 
 export interface PlanLineDef {
   key: string;
   label: string;
-  kind: 'income' | 'cost' | 'calculated' | 'unmapped' | 'excluded';
+  kind: 'income' | 'cost' | 'calculated' | 'unmapped' | 'excluded' | 'balance';
   sort_order: number;
   display_sign: 1 | -1;
   mappable: boolean;
@@ -155,6 +185,38 @@ export interface UnmappedRow {
 /** Accounts with actuals but no plan line, read a page at a time (ui-rules 1). */
 export function unmappedAccounts(entityId: string): Promise<UnmappedRow[]> {
   return pageAll<UnmappedRow>((from, to) => db().rpc('unmapped_accounts', { p_entity_id: entityId }).range(from, to), 'load the unmapped accounts');
+}
+
+export interface BalanceAccountRow {
+  connection_id: string;
+  account_code: string;
+  account_name: string | null;
+  plan_line: string | null;
+  months: number;
+  first_month: Period | null;
+  last_month: Period | null;
+  /** The latest closing balance, trial-balance sign. Number or exact text. */
+  last_balance: number | string;
+}
+
+/** Every account with balances (fpa.balance_accounts), unmapped first, read a page at a time. */
+export function balanceAccounts(entityId: string): Promise<BalanceAccountRow[]> {
+  return pageAll<BalanceAccountRow>((from, to) => db().rpc('balance_accounts', { p_entity_id: entityId }).range(from, to), 'load the balance accounts');
+}
+
+interface CashPositionRow {
+  latest_month: Period; months_available: number; unmapped_accounts: number; cash_accounts: number;
+  month: Period; has_balances: boolean; cash: number | string | null;
+}
+
+/** fpa.cash_position (0004): the latest month with balances and the four before it (none if no balances). */
+export async function cashPosition(entityId: string): Promise<CashRow[]> {
+  const rows = await pageAll<CashPositionRow>((from, to) => db().rpc('cash_position', { p_entity_id: entityId }).range(from, to), 'load the cash position');
+  if (rows.length > 5) throw new DbError('load the cash position', { message: `expected at most 5 months, got ${rows.length}` });
+  return rows.map(r => ({
+    latestMonth: r.latest_month, monthsAvailable: r.months_available, unmappedAccounts: r.unmapped_accounts, cashAccounts: r.cash_accounts,
+    month: r.month, hasBalances: r.has_balances, cash: r.cash === null ? null : toCents(r.cash),
+  }));
 }
 
 /** Saves mappings for one connection in one transaction. plan_line null removes a mapping. */

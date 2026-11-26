@@ -14,7 +14,12 @@ const api = {
   addCsvConnection: vi.fn(async () => CONN),
   fiscalYearStartMonth: vi.fn(async () => 1),
   recentImports: vi.fn(async () => [] as unknown[]),
-  importedMonths: vi.fn(async () => new Set<string>()),
+  importedMonths: vi.fn(async (_c: string, _kind?: string) => new Set<string>()),
+  balanceAccounts: vi.fn(async () => [] as { connection_id: string; account_code: string; plan_line: string | null; last_month: string | null }[]),
+  importBalances: vi.fn(async (_e: string, _c: string, rows: { account_code: string; month: string; amount: string }[], _name: string) => ({
+    sync_run_id: 'r2', months_replaced: [...new Set(rows.map(r => r.month))].sort(), rows_removed: 0, rows_added: rows.length,
+    balances_through: '2025-12-01', imported_at: '2026-11-26T09:30:00Z',
+  })),
   importActuals: vi.fn(async (_e: string, _c: string, rows: { account_code: string; month: string; amount: string }[], _name: string) => ({
     sync_run_id: 'r1', months_replaced: [...new Set(rows.map(r => r.month))].sort(), rows_removed: 0, rows_added: rows.length,
     actuals_through: '2025-12-01', last_synced_at: '2026-11-25T09:30:00Z',
@@ -26,6 +31,8 @@ const { ConnectPage } = await import('./ConnectPage');
 
 const SAMPLE = readFileSync(resolve(process.cwd(), 'public/samples/sample-actuals.csv'), 'utf8');
 const BROKEN = readFileSync(resolve(process.cwd(), 'public/samples/sample-actuals-broken.csv'), 'utf8');
+const BALANCES = readFileSync(resolve(process.cwd(), 'public/samples/sample-balances.csv'), 'utf8');
+const BALANCES_BROKEN = readFileSync(resolve(process.cwd(), 'public/samples/sample-balances-broken.csv'), 'utf8');
 const ENTITY = { id: '0b483fe4-e952-4170-83b5-a79b911b8023', name: 'Acme Ltd', jurisdiction: 'IE', currency: 'EUR' } as const;
 
 function show(role: CurrentEntity['role'] = 'owner') {
@@ -61,8 +68,20 @@ beforeEach(() => {
   vi.clearAllMocks();
   api.listConnections.mockImplementation(async () => [CONN]);
   api.importedMonths.mockImplementation(async () => new Set<string>());
+  api.balanceAccounts.mockImplementation(async () => []);
 });
 afterEach(cleanup);
+
+/** Phase 2: pick "Month-end balances", choose the file, check it (no questions about the numbers). */
+async function toBalancesPreview(text: string, name = 'balances.csv') {
+  fireEvent.click(await screen.findByLabelText(/Month-end balances/));
+  await choose(file(text, name));
+  await screen.findByText(/Match the columns in .*\(month-end balances\)/);
+  expect(screen.queryByText(/Are the amounts monthly movements/)).toBeNull();
+  expect(screen.queryByText(/Does income appear as a positive number/)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Check the file' }));
+  await screen.findByText(/Check before importing/);
+}
 
 describe('connection and roles', () => {
   it('an owner with no CSV connection can add one', async () => {
@@ -243,5 +262,92 @@ describe('the two questions about the numbers (ui-rules 3)', () => {
     await toPreview('account_code,month,amount\n4000,2025-01,-1\n4000,2025-03,-3\n', { ytd: true });
     expect(screen.getByRole('table', { name: 'Problems in the file' }).textContent).toContain('The file has no 2025-02');
     expect((screen.getByRole('button', { name: 'Import' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe('month-end balances (Phase 2)', () => {
+  it('P&L movements is the default; balances is a choice before the file', async () => {
+    show();
+    expect((await screen.findByLabelText(/P&L movements/) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByLabelText(/Month-end balances/));
+    expect(screen.getByRole('button', { name: 'Download the balances template' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Download the balances sample' }).getAttribute('href')).toBe('/samples/sample-balances.csv');
+  });
+  it('the balances sample: checked, previewed and sent to import_balances (never import_actuals)', async () => {
+    show();
+    await toBalancesPreview(BALANCES, 'sample-balances.csv');
+    expect(fact('Rows to import')).toBe('36');
+    expect(fact('Accounts')).toBe('3');
+    expect(fact('Months')).toBe('Jan 2025 to Dec 2025 (12 months)');
+    expect(fact('The amounts')).toContain('Month-end (closing) balances');
+    // Balances grow or fall steadily by nature: no "these look like year-to-date balances" warning.
+    expect(screen.queryByText(/look like year-to-date/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Import 36 balances' }));
+    await screen.findByText('Imported');
+    expect(api.importBalances).toHaveBeenCalledTimes(1);
+    expect(api.importActuals).not.toHaveBeenCalled();
+    const call = api.importBalances.mock.calls[0];
+    expect(call).toBeDefined();
+    const [, , rows, name] = call ?? [];
+    expect(name).toBe('sample-balances.csv');
+    expect(rows).toContainEqual({ account_code: '1210', account_name: 'Bank current account', month: '2025-12-01', amount: '87150.00' });
+    expect(fact('Balances through')).toBe('Dec 2025');
+    expect(screen.getByRole('link', { name: 'Map the balance accounts' })).toBeTruthy();
+  });
+  it('the broken balances sample (one bad month) is refused with its line numbers, and nothing is sent', async () => {
+    show();
+    await toBalancesPreview(BALANCES_BROKEN, 'sample-balances-broken.csv');
+    const problems = screen.getByRole('table', { name: 'Problems in the file' }).textContent ?? '';
+    for (const line of ['17', '18', '19']) expect(problems).toContain(line);
+    expect(fact('Rows with problems')).toBe('3');
+    expect((screen.getByRole('button', { name: 'Import' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(api.importBalances).not.toHaveBeenCalled();
+  });
+  it('warns (does not block) when an account mapped to Cash and bank has no row for a month in the file', async () => {
+    api.balanceAccounts.mockImplementation(async () => [
+      { connection_id: CONN.id, account_code: '1210', plan_line: 'cash_bank', last_month: '2025-10-01' },
+      { connection_id: CONN.id, account_code: '1200', plan_line: 'cash_bank', last_month: '2025-10-01' },
+      { connection_id: 'another-connection', account_code: '1300', plan_line: 'cash_bank', last_month: '2025-10-01' },
+    ]);
+    show();
+    await toBalancesPreview('account_code,account_name,month,amount\n1210,Bank,2025-11,100.00\n1100,Debtors,2025-11,5.00\n');
+    const warn = screen.getByTestId('cash-missing').textContent ?? '';
+    expect(warn).toContain('Account 1200 has no row for Nov 2025; its balance will count as 0.');
+    expect(warn).not.toContain('1210');
+    expect(warn).not.toContain('1300'); // another connection's account
+    const btn = screen.getByRole('button', { name: 'Import 2 balances' }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+    fireEvent.click(btn);
+    await waitFor(() => expect(api.importBalances).toHaveBeenCalledTimes(1));
+  });
+  it('months of balances imported before are named as replaced (P&L months are not)', async () => {
+    api.importedMonths.mockImplementation(async (_c: string, kind?: string) => new Set(kind === 'balances' ? ['2025-12-01'] : ['2025-01-01']));
+    show();
+    await toBalancesPreview(BALANCES);
+    expect(screen.getByText(/Already imported, and will be replaced completely: Dec 2025/)).toBeTruthy();
+    expect(screen.queryByText(/replaced completely: Jan 2025/)).toBeNull();
+  });
+  it('the status line shows the balances month, and recent imports say which kind', async () => {
+    api.balanceAccounts.mockImplementation(async () => [{ connection_id: CONN.id, account_code: '1210', plan_line: null, last_month: '2025-12-01' }]);
+    api.recentImports.mockImplementation(async () => [
+      { id: 'a', source_name: 'b.csv', months_replaced: ['2025-12-01'], rows_removed: 0, rows_added: 3, status: 'succeeded', created_at: '2026-11-26T09:00:00Z', kind: 'balances' },
+      { id: 'b', source_name: 'p.csv', months_replaced: ['2025-12-01'], rows_removed: 0, rows_added: 9, status: 'succeeded', created_at: '2026-11-25T09:00:00Z', kind: 'actuals' },
+    ]);
+    show();
+    expect(await screen.findByText('Dec 2025', { selector: 'strong' })).toBeTruthy();
+    expect(screen.getByText(/Balances through/)).toBeTruthy();
+    const table = screen.getByRole('table', { name: 'Recent imports (latest 10)' }).textContent ?? '';
+    expect(table).toContain('Balances');
+    expect(table).toContain('P&L');
+    api.recentImports.mockImplementation(async () => []);
+  });
+  it('a timeout during a balances import says "Try a smaller file" and shows no result', async () => {
+    api.importBalances.mockImplementationOnce(async () => { throw Object.assign(new Error('x'), { code: '57014' }); });
+    show();
+    await toBalancesPreview(BALANCES);
+    fireEvent.click(screen.getByRole('button', { name: 'Import 36 balances' }));
+    const alert = await screen.findByText(/Nothing was imported/);
+    expect(alert.closest('[role="alert"]')?.textContent).toContain('This took too long. Try a smaller file.');
+    expect(screen.queryByText('Imported')).toBeNull();
   });
 });

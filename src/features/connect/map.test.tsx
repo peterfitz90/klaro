@@ -2,10 +2,11 @@
 // Account mapping screen (step 1C) with the data layer replaced by fakes. Covers docs/ui-rules.md
 // sections 1, 2 and 6 and the mapping items of docs/p1c-review-checklist.md.
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { onDataChanged } from '../../lib/dataEvents';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EntityContext, type CurrentEntity } from '../entities/context';
-import type { AccountRow, PlanLineDef } from './api';
+import type { AccountRow, BalanceAccountRow, PlanLineDef } from './api';
 
 const C1 = 'c0c0c0c0-0000-4000-8000-000000000001';
 const DEFS: PlanLineDef[] = [
@@ -15,17 +16,22 @@ const DEFS: PlanLineDef[] = [
   ['other_operating', 'Other operating costs', 'cost', 70, 1, true], ['operating_profit', 'Operating profit', 'calculated', 80, -1, false],
   ['interest', 'Interest', 'cost', 90, 1, true], ['tax', 'Tax', 'cost', 100, 1, true], ['net_profit', 'Net profit', 'calculated', 110, -1, false],
   ['unmapped', 'Unmapped', 'unmapped', 120, 1, false], ['excluded', 'Not in the P&L (excluded)', 'excluded', 130, 1, true],
+  ['cash_bank', 'Cash and bank', 'balance', 140, 1, true],
 ].map(([key, label, kind, sort_order, display_sign, mappable]) => ({ key, label, kind, sort_order, display_sign, mappable }) as PlanLineDef);
 
 const acc = (code: string, name: string | null, line: string | null, total: string, months = 12): AccountRow =>
   ({ connection_id: C1, account_code: code, account_name: name, plan_line: line, months, first_month: '2025-01-01', last_month: '2025-12-01', total });
 
 let ROWS: AccountRow[] = [];
+let BAL: BalanceAccountRow[] = [];
+const bal = (code: string, name: string | null, line: string | null, last: string): BalanceAccountRow =>
+  ({ connection_id: C1, account_code: code, account_name: name, plan_line: line, months: 12, first_month: '2025-01-01', last_month: '2025-12-01', last_balance: last });
 const api = {
   listPlanLineDefs: vi.fn(async () => DEFS),
   accountMap: vi.fn(async () => ROWS),
   listConnections: vi.fn(async () => [{ id: C1, source_type: 'csv', status: 'active', last_synced_at: null, actuals_through: null, created_at: '' }]),
   setLineMap: vi.fn(async (_c: string, entries: unknown[]) => entries.length),
+  balanceAccounts: vi.fn(async () => BAL),
 };
 vi.mock('./api', () => api);
 vi.mock('../../lib/supabase', () => ({ fpaClient: () => { throw new Error('no db in tests'); } }));
@@ -54,6 +60,8 @@ beforeEach(() => {
     acc('2200', 'VAT control', 'excluded', '-22800.00'),
   ];
   api.accountMap.mockImplementation(async () => ROWS);
+  BAL = [];
+  api.balanceAccounts.mockImplementation(async () => BAL);
   api.setLineMap.mockImplementation(async (_c: string, entries: unknown[]) => entries.length);
 });
 afterEach(cleanup);
@@ -202,5 +210,67 @@ describe('finding accounts', () => {
     fireEvent.click(screen.getByRole('button', { name: 'All' }));
     fireEvent.change(screen.getByLabelText('Find an account'), { target: { value: 'wages' } });
     expect(codes()).toEqual(['6000']);
+  });
+});
+
+describe('balance accounts (Phase 2)', () => {
+  beforeEach(() => {
+    BAL = [bal('1100', 'Trade debtors', null, '31240.85'), bal('1210', 'Bank current account', null, '87150.00'), bal('1220', 'Bank deposit account', null, '8250.00')];
+  });
+  const balSelect = (code: string) => screen.getByLabelText(`Plan line for balance account ${code}`) as HTMLSelectElement;
+  it('Cash and bank is offered for balance accounts only, never for P&L accounts', async () => {
+    show();
+    await screen.findByTestId('balance-status');
+    expect([...select('6000').options].map(o => o.textContent)).not.toContain('Cash and bank');
+    expect([...balSelect('1210').options].map(o => o.textContent)).toEqual(['Unmapped', 'Cash and bank', 'Not cash (left out)']);
+  });
+  it('says how many are unmapped and that the cash tiles show "—" until one is on Cash and bank', async () => {
+    show();
+    const s = (await screen.findByTestId('balance-status')).textContent ?? '';
+    expect(s).toContain('3 of 3 balance accounts unmapped');
+    expect(s).toContain('No account is on Cash and bank yet');
+  });
+  it('suggestions are labelled and only used when asked; nothing is saved until Save', async () => {
+    show();
+    await screen.findByTestId('balance-status');
+    const t = within(screen.getByRole('table', { name: 'Balance accounts and their plan lines' }));
+    expect(t.getAllByText(/Suggested: Cash and bank/)).toHaveLength(2);
+    expect(t.getByText(/Suggested: Not cash \(left out\)/)).toBeTruthy();
+    expect(balSelect('1210').value).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: 'Use all 3 suggestions' }));
+    expect(balSelect('1210').value).toBe('cash_bank');
+    expect(balSelect('1100').value).toBe('excluded');
+    expect(api.setLineMap).not.toHaveBeenCalled();
+  });
+  it('Save sends the balance mappings in one call per source and tells the KPI strip to reload', async () => {
+    const changed = vi.fn();
+    const off = onDataChanged(ENTITY.id, changed);
+    show();
+    await screen.findByTestId('balance-status');
+    fireEvent.change(balSelect('1210'), { target: { value: 'cash_bank' } });
+    fireEvent.change(balSelect('1220'), { target: { value: 'cash_bank' } });
+    fireEvent.change(balSelect('1100'), { target: { value: 'excluded' } });
+    BAL = [bal('1100', 'Trade debtors', 'excluded', '31240.85'), bal('1210', 'Bank current account', 'cash_bank', '87150.00'), bal('1220', 'Bank deposit account', 'cash_bank', '8250.00')];
+    fireEvent.click(within(screen.getByTestId('balance-mapping')).getByRole('button', { name: 'Save 3 changes' }));
+    await waitFor(() => expect(api.setLineMap).toHaveBeenCalledTimes(1));
+    expect(api.setLineMap).toHaveBeenCalledWith(C1, [
+      { account_code: '1100', plan_line: 'excluded' }, { account_code: '1210', plan_line: 'cash_bank' }, { account_code: '1220', plan_line: 'cash_bank' }]);
+    expect((await screen.findByTestId('balance-status')).textContent).toContain('All 3 balance accounts are mapped; 2 accounts on Cash and bank');
+    expect(changed).toHaveBeenCalled();
+    off();
+  });
+  it('a timeout while saving keeps the choices and says nothing was changed', async () => {
+    api.setLineMap.mockImplementationOnce(async () => { throw timeout(); });
+    show();
+    await screen.findByTestId('balance-status');
+    fireEvent.change(balSelect('1210'), { target: { value: 'cash_bank' } });
+    fireEvent.click(within(screen.getByTestId('balance-mapping')).getByRole('button', { name: 'Save 1 change' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Nothing was changed');
+    expect(balSelect('1210').value).toBe('cash_bank');
+  });
+  it('with no balances imported, says how to add them', async () => {
+    BAL = [];
+    show();
+    expect(await screen.findByText(/No month-end balances imported yet/)).toBeTruthy();
   });
 });

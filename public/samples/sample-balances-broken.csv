@@ -1,0 +1,37 @@
+account_code,account_name,month,amount
+1210,Bank current account,2025-01,98420.15
+1220,Bank deposit account,2025-01,8250.00
+1100,Trade debtors,2025-01,21450.00
+1210,Bank current account,2025-02,104310.60
+1220,Bank deposit account,2025-02,8250.00
+1100,Trade debtors,2025-02,19980.40
+1210,Bank current account,2025-03,109874.22
+1220,Bank deposit account,2025-03,8250.00
+1100,Trade debtors,2025-03,23115.75
+1210,Bank current account,2025-04,115002.90
+1220,Bank deposit account,2025-04,8250.00
+1100,Trade debtors,2025-04,22610.10
+1210,Bank current account,2025-05,119640.33
+1220,Bank deposit account,2025-05,8250.00
+1100,Trade debtors,2025-05,24890.55
+1210,Bank current account,2025-13,124115.70
+1220,Bank deposit account,2025-13,8250.00
+1100,Trade debtors,2025-13,25330.00
+1210,Bank current account,2025-07,126980.45
+1220,Bank deposit account,2025-07,8250.00
+1100,Trade debtors,2025-07,23975.80
+1210,Bank current account,2025-08,125312.08
+1220,Bank deposit account,2025-08,8250.00
+1100,Trade debtors,2025-08,26410.25
+1210,Bank current account,2025-09,123600.00
+1220,Bank deposit account,2025-09,8250.00
+1100,Trade debtors,2025-09,27120.60
+1210,Bank current account,2025-10,112845.37
+1220,Bank deposit account,2025-10,8250.00
+1100,Trade debtors,2025-10,28305.15
+1210,Bank current account,2025-11,99930.12
+1220,Bank deposit account,2025-11,8250.00
+1100,Trade debtors,2025-11,29870.40
+1210,Bank current account,2025-12,87150.00
+1220,Bank deposit account,2025-12,8250.00
+1100,Trade debtors,2025-12,31240.85

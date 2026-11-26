@@ -7,9 +7,11 @@ import { Link } from 'react-router-dom';
 import { entityPath } from '../../app/shell/tasks';
 import { suggestLine } from '../../engine';
 import { callMessage } from '../../lib/errors';
+import { dataChanged } from '../../lib/dataEvents';
 import { useLoad } from '../../lib/useLoad';
 import { useCurrentEntity } from '../entities/context';
 import { accountMap, listConnections, listPlanLineDefs, setLineMap } from './api';
+import { BalanceMapping } from './BalanceMapping';
 import { ConnectTabs } from './ConnectPage';
 import { drCr, monthLabel, plural } from './format';
 import { editsByConnection, summarise, toAccounts, type Account } from './mapping';
@@ -34,7 +36,8 @@ export function MapPage() {
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
   const data = load.status === 'ok' ? load.data : null;
-  const lineOptions = useMemo(() => (data ? data.defs.filter(d => d.mappable) : []), [data]);
+  // Cash and bank is offered only for balance accounts (the section below), not for P&L accounts.
+  const lineOptions = useMemo(() => (data ? data.defs.filter(d => d.mappable && d.kind !== 'balance') : []), [data]);
   const labelOf = useMemo(() => new Map((data?.defs ?? []).map(d => [d.key, d.label])), [data]);
   const summary = useMemo(() => (data ? summarise(data.accounts) : null), [data]);
 
@@ -82,6 +85,7 @@ export function MapPage() {
       setEdits(new Map());
       setNotice({ ok: true, text: `Saved ${plural(pendingCount, 'change')}.` });
       load.reload();
+      dataChanged(entity.id);
     } catch (err) {
       const msg = callMessage(err, 'mapping');
       if (done === 0) {
@@ -91,6 +95,7 @@ export function MapPage() {
         setEdits(new Map());
         setNotice({ ok: false, text: `The changes for ${done} of ${groups.length} sources were saved; the rest were not: ${msg} The list below shows what is saved now.` });
         load.reload();
+        dataChanged(entity.id);
       }
     } finally {
       setSaving(false);
@@ -194,6 +199,7 @@ export function MapPage() {
                         onChange={e => setLine(a, e.target.value === '' ? null : e.target.value)}>
                         <option value="">Unmapped</option>
                         {lineOptions.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
+                        {line === 'cash_bank' && <option value="cash_bank">Cash and bank (a balance line)</option>}
                       </select>
                       {changed && <span className="f-hint" style={{ marginLeft: 6 }}>changed</span>}
                       {sug && canEdit && (
@@ -216,6 +222,7 @@ export function MapPage() {
           <button type="button" className="btn btn-s btn-sm" onClick={() => setShown(s => s + PAGE)}>Show {Math.min(PAGE, visible.length - shown)} more</button>
         </p>
       )}
+      <BalanceMapping />
     </>
   );
 }

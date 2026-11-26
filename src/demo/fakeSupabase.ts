@@ -14,6 +14,8 @@ const entities: Row[] = [
 const connections: Record<string, unknown>[] = [];
 const syncRuns: Record<string, unknown>[] = [];
 const actuals: Actual[] = [];
+// Phase 2: month-end balances (trial-balance sign), for the balances import, mapping and cash tiles.
+const balances: Actual[] = [];
 const lineMap = new Map<string, string>();   // `${connection}|${code}` -> plan line
 type PlanLineRow = { id: string; version_id: string; scenario_id: string; plan_line: string; period: string; amount: string; origin: string };
 const versions: Record<string, unknown>[] = [];
@@ -25,7 +27,8 @@ const DEFS = [
   ['other_operating', 'Other operating costs', 'cost', 70, 1], ['operating_profit', 'Operating profit', 'calculated', 80, -1],
   ['interest', 'Interest', 'cost', 90, 1], ['tax', 'Tax', 'cost', 100, 1], ['net_profit', 'Net profit', 'calculated', 110, -1],
   ['unmapped', 'Unmapped', 'unmapped', 120, 1], ['excluded', 'Not in the P&L (excluded)', 'excluded', 130, 1],
-].map(([key, label, kind, sort_order, display_sign]) => ({ key, label, kind, sort_order, display_sign, mappable: ['income', 'cost', 'excluded'].includes(kind as string) }));
+  ['cash_bank', 'Cash and bank', 'balance', 140, 1],
+].map(([key, label, kind, sort_order, display_sign]) => ({ key, label, kind, sort_order, display_sign, mappable: ['income', 'cost', 'excluded', 'balance'].includes(kind as string) }));
 
 const banner = document.createElement('div');
 banner.textContent = 'DEMO: fake sign-in and made-up data. Nothing here is saved or real.';
@@ -139,9 +142,62 @@ function rpc(fn: string, args: Record<string, unknown>) {
       const now = new Date().toISOString();
       const c = connections.find(x => x.id === conn);
       if (c) Object.assign(c, { status: 'active', actuals_through: through, last_synced_at: now });
-      const run = { id: crypto.randomUUID(), connection_id: conn, source_name: args.p_source_name, months_replaced: months, rows_removed: removed, rows_added: rows.length, status: 'succeeded', created_at: now };
+      const run = { id: crypto.randomUUID(), connection_id: conn, source_name: args.p_source_name, months_replaced: months, rows_removed: removed, rows_added: rows.length, status: 'succeeded', created_at: now, kind: 'actuals' };
       syncRuns.push(run);
       return ok({ sync_run_id: run.id, months_replaced: months, rows_removed: removed, rows_added: rows.length, actuals_through: through, last_synced_at: now });
+    }
+    if (fn === 'import_balances') {
+      await new Promise(r => setTimeout(r, 400));
+      const rows = args.p_rows as { account_code: string; account_name?: string; month: string; amount: string }[];
+      const conn = String(args.p_connection_id);
+      const months = [...new Set(rows.map(r => r.month))].sort();
+      const before = balances.length;
+      for (let i = balances.length - 1; i >= 0; i--) if (balances[i]?.connection_id === conn && months.includes(balances[i]?.period ?? '')) balances.splice(i, 1);
+      const removed = before - balances.length;
+      for (const r of rows) balances.push({ connection_id: conn, entity_id: String(args.p_entity_id), account_code: r.account_code, account_name: r.account_name ?? null, period: r.month, amount: Number(r.amount) });
+      const through = balances.filter(a => a.connection_id === conn).map(a => a.period).sort().pop();
+      const now = new Date().toISOString();
+      const run = { id: crypto.randomUUID(), connection_id: conn, source_name: args.p_source_name, months_replaced: months, rows_removed: removed, rows_added: rows.length, status: 'succeeded', created_at: now, kind: 'balances' };
+      syncRuns.push(run);
+      return ok({ sync_run_id: run.id, months_replaced: months, rows_removed: removed, rows_added: rows.length, balances_through: through, imported_at: now });
+    }
+    if (fn === 'balance_accounts') {
+      const byKey = new Map<string, { connection_id: string; account_code: string; account_name: string | null; months: number; first_month: string; last_month: string; last_balance: string }>();
+      for (const b of balances.filter(x => x.entity_id === String(args.p_entity_id))) {
+        const k = `${b.connection_id}|${b.account_code}`;
+        const r = byKey.get(k) ?? { connection_id: b.connection_id, account_code: b.account_code, account_name: b.account_name, months: 0, first_month: b.period, last_month: b.period, last_balance: b.amount.toFixed(2) };
+        r.months++;
+        if (b.period < r.first_month) r.first_month = b.period;
+        if (b.period >= r.last_month) { r.last_month = b.period; r.last_balance = b.amount.toFixed(2); }
+        byKey.set(k, r);
+      }
+      const out = [...byKey.values()].map(r => ({ ...r, plan_line: lineMap.get(`${r.connection_id}|${r.account_code}`) ?? null }))
+        .sort((a, b) => Number(a.plan_line !== null) - Number(b.plan_line !== null) || a.account_code.localeCompare(b.account_code));
+      return ok(slice(out, range));
+    }
+    if (fn === 'cash_position') {
+      const mine = balances.filter(x => x.entity_id === String(args.p_entity_id));
+      if (mine.length === 0) return ok([]);
+      const latest = mine.map(b => b.period).sort().pop() ?? '';
+      const withMonths = new Set(mine.map(b => b.period));
+      const isCash = (b: Actual) => lineMap.get(`${b.connection_id}|${b.account_code}`) === 'cash_bank';
+      const atLatest = mine.filter(b => b.period === latest);
+      const unmapped = atLatest.filter(b => !lineMap.has(`${b.connection_id}|${b.account_code}`)).length;
+      const cashAccounts = atLatest.filter(isCash).length;
+      const out = Array.from({ length: 5 }, (_, k) => addM(latest, -k)).map(p => ({
+        latest_month: latest, months_available: withMonths.size, unmapped_accounts: unmapped, cash_accounts: cashAccounts, month: p,
+        has_balances: withMonths.has(p),
+        cash: withMonths.has(p) ? mine.filter(b => b.period === p && isCash(b)).reduce((t, b) => t + Math.round(b.amount * 100), 0) / 100 : null,
+      })).map(r => ({ ...r, cash: r.cash === null ? null : r.cash.toFixed(2) }));
+      return ok(slice(out, range));
+    }
+    if (fn === 'save_budget_lines') {
+      const v = versions.find(x => x.id === args.p_version_id);
+      if (v?.locked_at) return { data: null, error: { code: 'PT423', message: 'This version is locked. Unlock it first.' } };
+      const lines = args.p_lines as { id: string; amount: string }[];
+      if (lines.some(l => !planLines.find(p => p.id === l.id && p.version_id === args.p_version_id))) return { data: null, error: { code: 'PT400', message: 'Line 1: that line is not a budget line of this version.' } };
+      for (const l of lines) { const p = planLines.find(x => x.id === l.id); if (p) { p.amount = l.amount; p.origin = 'manual'; } }
+      return ok(lines.length);
     }
     if (fn === 'account_map') return ok(slice(accountMap(String(args.p_entity_id)), range));
     if (fn === 'variance') return ok(slice(demoVariance(String(args.p_entity_id), (args.p_version_id as string | null) ?? null, String(args.p_from), String(args.p_to)), range));
@@ -199,7 +255,7 @@ function demoVariance(entityId: string, versionId: string | null, from: string, 
     const buds = planLines.filter(l => l.version_id === versionId && l.period === p);
     const a = (k: string) => acts.filter(x => mapped(x) === k).reduce((t, x) => t + x.amount, 0);
     const bu = (k: string) => buds.filter(x => x.plan_line === k).reduce((t, x) => t + Number(x.amount), 0);
-    for (const d of DEFS.filter(x => x.kind !== 'excluded')) {
+    for (const d of DEFS.filter(x => x.kind !== 'excluded' && x.kind !== 'balance')) {
       const parts = d.kind === 'calculated' ? DEFS.filter(x => (x.kind === 'income' || x.kind === 'cost') && (x.sort_order as number) < (d.sort_order as number)).map(x => String(x.key)) : [String(d.key)];
       const sign = d.display_sign as number;
       const av = acts.length ? sign * parts.reduce((t, k) => t + a(k), 0) : null;
