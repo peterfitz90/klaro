@@ -1,0 +1,36 @@
+{
+  "about": "fpa.cash_position rows exactly as test_0004.sql asserted them (entities C, D, E and A in db/tests/0004_phase2.test.sql, run 26 Nov 2026, 153 passes), with the Cash balance, net cash burn and Runway that src/engine/cash.ts must give for them. Hand-computed: C burn = (13640.00 - 9725.00) / 3 = 1305.00, runway = 9725.00 / 1305.00 = 7.45 -> 7.4; A burn = (10000.00 - 7000.00) / 3 = 1000.00, runway = 7000.00 / 1000.00 = 7.0.",
+  "currentMonth": "2026-11-01",
+  "cases": [
+    {
+      "name": "C: four Cash and bank accounts, falling cash",
+      "head": { "latest": "2025-10-01", "available": 5, "unmapped": 1, "cashAccounts": 4 },
+      "months": [["2025-10-01", true, "9725.00"], ["2025-09-01", true, "10830.25"], ["2025-08-01", true, "12200.50"], ["2025-07-01", true, "13640.00"], ["2025-06-01", true, "14550.00"]],
+      "expect": { "cash": "9725.00", "burn": "1305.00", "runway": "7.4" }
+    },
+    {
+      "name": "D: August never imported, so the burn window Jul-Oct is incomplete",
+      "head": { "latest": "2025-10-01", "available": 4, "unmapped": 0, "cashAccounts": 1 },
+      "months": [["2025-10-01", true, "60.00"], ["2025-09-01", true, "70.00"], ["2025-08-01", false, null], ["2025-07-01", true, "90.00"], ["2025-06-01", true, "100.00"]],
+      "expect": { "cash": "60.00", "burn": null, "runway": null }
+    },
+    {
+      "name": "E before mapping: every account excluded or unmapped (not set up)",
+      "head": { "latest": "2025-10-01", "available": 2, "unmapped": 1, "cashAccounts": 0 },
+      "months": [["2025-10-01", true, "0"], ["2025-09-01", true, "0"], ["2025-08-01", false, null], ["2025-07-01", false, null], ["2025-06-01", false, null]],
+      "expect": { "cash": null, "burn": null, "runway": null }
+    },
+    {
+      "name": "E after mapping: only two months of balances",
+      "head": { "latest": "2025-10-01", "available": 2, "unmapped": 1, "cashAccounts": 1 },
+      "months": [["2025-10-01", true, "400.00"], ["2025-09-01", true, "550.00"], ["2025-08-01", false, null], ["2025-07-01", false, null], ["2025-06-01", false, null]],
+      "expect": { "cash": "400.00", "burn": null, "runway": null }
+    },
+    {
+      "name": "A: one Cash and bank account, four months",
+      "head": { "latest": "2025-04-01", "available": 4, "unmapped": 1, "cashAccounts": 1 },
+      "months": [["2025-04-01", true, "7000.00"], ["2025-03-01", true, "8000.00"], ["2025-02-01", true, "9100.00"], ["2025-01-01", true, "10000.00"], ["2024-12-01", false, null]],
+      "expect": { "cash": "7000.00", "burn": "1000.00", "runway": "7.0" }
+    }
+  ]
+}

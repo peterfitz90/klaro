@@ -7,7 +7,7 @@ import { entityPath } from '../../app/shell/tasks';
 import { userMessage } from '../../lib/errors';
 import { useLoad } from '../../lib/useLoad';
 import { useCurrentEntity } from '../entities/context';
-import { addCsvConnection, fiscalYearStartMonth, importedMonths, listConnections, recentImports, type Connection } from './api';
+import { addCsvConnection, balanceAccounts, fiscalYearStartMonth, importedMonths, listConnections, recentImports, type Connection } from './api';
 import { dateTime, monthLabel, monthsSummary, plural } from './format';
 import { ImportWizard } from './ImportWizard';
 
@@ -92,10 +92,15 @@ function CsvConnection({ connection, fyStart }: { connection: Connection; fyStar
   const { entity, role } = useCurrentEntity();
   const canImport = role === 'owner' || role === 'editor';
   const status = useLoad(async () => {
-    const [connections, runs, months] = await Promise.all([listConnections(entity.id), recentImports(connection.id), importedMonths(connection.id)]);
+    const [connections, runs, months, balanceMonths, balAccounts] = await Promise.all([
+      listConnections(entity.id), recentImports(connection.id), importedMonths(connection.id, 'actuals'), importedMonths(connection.id, 'balances'), balanceAccounts(entity.id),
+    ]);
     const now = connections.find(c => c.id === connection.id);
     if (!now) throw new Error('This connection is no longer visible to you.');
-    return { now, runs, months };
+    const mine = balAccounts.filter(a => a.connection_id === connection.id);
+    const cashCodes = new Set(mine.filter(a => a.plan_line === 'cash_bank').map(a => a.account_code));
+    const balancesThrough = mine.reduce<string | null>((m, a) => (a.last_month && (!m || a.last_month > m) ? a.last_month : m), null);
+    return { now, runs, months, balanceMonths, cashCodes, balancesThrough };
   }, [entity.id, connection.id]);
 
   return (
@@ -113,6 +118,9 @@ function CsvConnection({ connection, fyStart }: { connection: Connection; fyStar
             {status.data.now.actuals_through
               ? <>Actuals through <strong>{monthLabel(status.data.now.actuals_through)}</strong>, last synced {status.data.now.last_synced_at ? dateTime(status.data.now.last_synced_at) : 'never'}.</>
               : <>No actuals imported yet.</>}
+            {' '}{status.data.balancesThrough
+              ? <>Balances through <strong>{monthLabel(status.data.balancesThrough)}</strong>.</>
+              : <>No month-end balances imported yet.</>}
             {status.data.now.status === 'disabled' && <> This connection is disabled.</>}
           </p>
         )}
@@ -124,6 +132,8 @@ function CsvConnection({ connection, fyStart }: { connection: Connection; fyStar
           connection={connection}
           fiscalYearStartMonth={fyStart}
           importedMonths={status.status === 'ok' ? status.data.months : null}
+          importedBalanceMonths={status.status === 'ok' ? status.data.balanceMonths : null}
+          cashCodes={status.status === 'ok' ? status.data.cashCodes : null}
           mapPath={`${entityPath(entity.id, 'connect')}/map`}
           onAttempted={status.reload}
         />
@@ -136,11 +146,11 @@ function CsvConnection({ connection, fyStart }: { connection: Connection; fyStar
           {status.data.runs.length === 0 ? <p className="f-hint">None yet.</p> : (
             <div className="table-wrap">
               <table className="gl-table" aria-label="Recent imports (latest 10)">
-                <thead><tr><th scope="col">When</th><th scope="col">File</th><th scope="col">Months replaced</th><th scope="col" className="r">Removed</th><th scope="col" className="r">Added</th></tr></thead>
+                <thead><tr><th scope="col">When</th><th scope="col">File</th><th scope="col">Type</th><th scope="col">Months replaced</th><th scope="col" className="r">Removed</th><th scope="col" className="r">Added</th></tr></thead>
                 <tbody>
                   {status.data.runs.map(r => (
                     <tr key={r.id}>
-                      <td>{dateTime(r.created_at)}</td><td>{r.source_name}</td><td>{monthsSummary(r.months_replaced)}</td>
+                      <td>{dateTime(r.created_at)}</td><td>{r.source_name}</td><td>{r.kind === 'balances' ? 'Balances' : 'P&L'}</td><td>{monthsSummary(r.months_replaced)}</td>
                       <td className="r mono">{r.rows_removed.toLocaleString('en-IE')}</td><td className="r mono">{r.rows_added.toLocaleString('en-IE')}</td>
                     </tr>
                   ))}
@@ -149,7 +159,11 @@ function CsvConnection({ connection, fyStart }: { connection: Connection; fyStar
             </div>
           )}
           {status.data.runs.length === 10 && <p className="f-hint" style={{ marginTop: 6 }}>Showing the latest 10 imports.</p>}
-          {status.data.runs.length > 0 && <p className="f-hint" style={{ marginTop: 6 }}>{plural(status.data.months.size, 'month')} imported in all.</p>}
+          {status.data.runs.length > 0 && (
+            <p className="f-hint" style={{ marginTop: 6 }}>
+              {plural(status.data.months.size, 'month')} of P&amp;L imported in all{status.data.balanceMonths.size > 0 && `; ${plural(status.data.balanceMonths.size, 'month-end')} of balances`}.
+            </p>
+          )}
         </div>
       )}
     </div>

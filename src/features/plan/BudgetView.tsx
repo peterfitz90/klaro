@@ -9,7 +9,7 @@ import { useLoad } from '../../lib/useLoad';
 import type { Entity, Role } from '../entities/model';
 import type { PlanLineDef } from '../connect/api';
 import { dateTime, monthLabel, plainAmount, plural } from '../connect/format';
-import { budgetLines, editLine, setLocked, type BudgetLine, type Plan, type Version } from './api';
+import { budgetLines, saveBudgetLines, setLocked, type BudgetLine, type Plan, type Version } from './api';
 
 export interface BudgetViewProps {
   entity: Entity;
@@ -66,25 +66,19 @@ export function BudgetView({ entity, plan, defs, version, role, onRebuild, onCha
     }
     setProblems(bad);
     if (bad.length) return;
+    if (list.length > 1200) { setProblems([`${list.length.toLocaleString('en-IE')} changes at once; save at most 1,200 at a time.`]); return; }
     setBusy(true); setNotice(null);
-    const saved: string[] = [];
+    // Phase 2: one call, one transaction (fpa.save_budget_lines). Either every change is saved or none
+    // is; on failure the edits stay on screen as unsaved, so one click tries again.
     try {
-      for (const x of list) { await editLine(x.id, x.amount); saved.push(x.id); }
+      const n = await saveBudgetLines(version.id, list.map(x => ({ id: x.id, amount: x.amount })));
       setEdits(new Map());
-      setNotice({ ok: true, text: `Saved ${plural(saved.length, 'change')}.` });
+      setNotice({ ok: true, text: `Saved ${plural(n, 'change')}.` });
       load.reload();
     } catch (err) {
-      const msg = callMessage(err, 'budget');
-      if (saved.length === 0) {
-        setNotice({ ok: false, text: msg });
-      } else {
-        // Each line is saved on its own. Keep the lines that did not save as unsaved edits, so one
-        // click retries them, and show what is saved now.
-        const left = list.length - saved.length;
-        setEdits(prev => { const n = new Map(prev); for (const id of saved) n.delete(id); return n; });
-        setNotice({ ok: false, text: `${plural(saved.length, 'change')} of ${list.length} ${saved.length === 1 ? 'was' : 'were'} saved; ${left === 1 ? 'the other was' : `the other ${left} were`} not. ${left === 1 ? 'It is' : 'They are'} still here as unsaved: press Save to try again. ${msg}` });
-        load.reload();
-      }
+      const code = (err as { code?: unknown }).code;
+      const msg = code === 'PT423' ? 'This budget is locked. Unlock it first.' : callMessage(err, 'budget');
+      setNotice({ ok: false, text: `Nothing was saved. ${msg.replace(/^Nothing was changed\. ?/, '').replace(/ Nothing was changed\./, '')} Your ${plural(list.length, 'change')} ${list.length === 1 ? 'is' : 'are'} still here: press Save to try again.` });
     } finally {
       setBusy(false);
     }
