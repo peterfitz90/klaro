@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The Cash page (Phase 4, behind CASH_PAGE_LIVE) with the data layer replaced by fakes. Cash figures
 // are Walkthrough Test 2's (made-up sample): €95,400.00 at Dec 2025, burn €12,150.00, runway 7.8.
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CASH_PAGE_LIVE } from '../../app/shell/kpiSwitch';
