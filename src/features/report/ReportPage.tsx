@@ -211,7 +211,7 @@ export function MonthlyReport({ generatedBy, today, now }: MonthlyReportProps) {
                 return (
                   <div className="kpi-card" key={t.label}>
                     <div className="kpi-label">{t.label}</div>
-                    <div className="kpi-value" aria-label={shown === null ? 'No figure' : undefined}>{shown ?? '—'}</div>
+                    <div className={`kpi-value${shown === null ? '' : ' kpi-live'}`} aria-label={shown === null ? 'No figure' : undefined}>{shown ?? '—'}</div>
                     {t.notes.map(n => <div className="kpi-sub" key={n}>{n}</div>)}
                   </div>
                 );
