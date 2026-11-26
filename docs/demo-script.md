@@ -80,6 +80,7 @@ That adds about 2 minutes.
 - **Walkthrough Test 1**
 - **Walkthrough Test 2**
 - **Walkthrough Test 3** (created live in step 2)
+- **"Budget 2025 (stretch)"** on Walkthrough Test 2 (created during the review, 26 Nov 2026; the Report demo budget)
 
 These stay as the prototype's demo data. The proposed delete script is not run.
 
@@ -113,8 +114,8 @@ on the preview (26 Nov 2026).
 ## Do not click (2B)
 
 - **Cash** in the side menu. It is a placeholder for the forecast, which is not built yet.
-- **Report on production** until `REPORT_LIVE` is switched on in `main`: there it is still the placeholder.
-  On the preview it is the monthly report (the last 2 minutes below).
+- **Report on production** before phase-3 is merged. It is still the placeholder there; on the preview
+  it is the monthly report (the last 2 minutes below).
 - **Connect → "Accounting package" or "MCP-style connection".** They are disabled and say "Not
   available yet".
 - **Rebuild from actuals…** on a budget with hand edits. It replaces them.
@@ -125,24 +126,33 @@ on the preview (26 Nov 2026).
   harmless but noisy.
 - **Sign out** during the demo.
 
-## Final 2 minutes: Report (Phase 3, on the preview)
+## Final 2 minutes: Report (Phase 3)
 
-The monthly board pack. It is on the preview only: `REPORT_LIVE` is on in the `preview` branch, and
-off in `phase-3` until you approve it. It only reads; opening it writes nothing.
+The monthly board pack. `REPORT_LIVE` is on in `phase-3` and on the preview. Production keeps the
+placeholder until phase-3 is merged. The report only reads; opening it writes nothing.
 
-**Walkthrough Test 1 has no balances, and they are not to be loaded into it.** So the report's cash
-figures are shown on **Walkthrough Test 2**, which has balances from your review.
+**The Report demo entity is Walkthrough Test 2.**
+- It has balances, so the cash figures show.
+- It has a real budget to compare against: "**Budget 2025 (stretch)**", created during your review
+  from the 2025 actuals with these uplifts: Revenue +6%, Cost of sales +4%, Payroll +3%, Marketing
+  −15%.
+- The report picks that budget by default for Dec 2025.
+
+Walkthrough Test 1 is not used here. Its "Budget 2025 (test)" is a copy of its actuals, so every
+variance there is €0.00, and it has no balances (none are to be loaded into it).
+
+**The header shows the signed-in user's email address** ("Generated … by …"). That is also in any
+PDF you print, so present from the account you are happy to show.
 
 | # | Time | Click | What the audience sees | Rough edges to avoid |
 |---|---|---|---|---|
-| 11 | 1:00 | **Walkthrough Test 1 → Report.** Leave Month on **Dec 2025**; Budget picks **"Budget 2025 (test)"** by itself, as the latest budget covering Dec 2025. Scroll through. | **Header:** "Walkthrough Test 1 / Monthly report: Dec 2025", who generated it and when, and "Actuals through Dec 2025, last synced … No month-end balances imported yet." **1. Headlines:** €65,024.39, €4,095.00, Cash "—", Runway "—" ("No balances yet"). **2. Budget against actual:** the same figures as Compare. Budget = actual on every line, because this test budget was built from the same year, so every variance is €0.00, "▲ Favourable". Revenue €65,024.39 for the month and €724,564.25 for the year to date; Net profit €4,095.00 and €93,429.56. **3. Trend:** revenue and net profit Jan–Dec 2025, with the budget dashed on top of the actuals (they are equal), and an axis up to €67,422 (Aug). Month-end cash shows "—" with "No balances yet". **4. Scenarios:** Base €724,564.25 / €631,134.69 / €93,429.56; Upside €797,020.68 / €671,548.28 / €125,472.40; Downside €652,107.83 / €604,679.71 / €47,428.12. Closing cash is "—", and the caveat is shown. **5. Data quality:** "None"; excluded "2 accounts, net total €6,936.49 Dr"; and the fixed line about not being audited. | Say that the budget equals actuals because it is a test budget built from the same months. A real budget shows variances. |
-| 12 | 0:30 | **Entity switcher → Walkthrough Test 2 → Report** (Dec 2025). | **Headlines:** Cash balance **€95,400.00**, Runway **7.8** (€12,150.00/month net cash burn, includes loans and owner funding). **Trend → Month-end cash:** bars for Aug–Dec 2025 of €133,562.08, €131,850.00, €121,095.37, €108,180.12 and €95,400.00, with the runway beside them. Budget is "No budget", because its only budget, "Review budget 2026", doesn't cover Dec 2025. Scenarios: "No budget chosen…". Excluded: 3 accounts, €7,786.12 Dr (9900 is excluded there). | Net profit on Test 2 is €4,099.18, not €4,095.00; the 9900 mapping explains it (see above). |
-| 13 | 0:30 | **Print / save as PDF.** In the browser's print dialog choose **Save as PDF**, **A4**, **Portrait**, default margins, then **Save**. | A black-on-white A4 report: no sidebar, menu or pickers; tables at a small type size; the charts included. | **Check the PDF once before the demo** (see "Not checked" in `docs/reports/P3-REPORT.md`). |
+| 11 | 1:15 | **Entity switcher → Walkthrough Test 2 → Report.** Leave Month on **Dec 2025**; Budget picks **"Budget 2025 (stretch)"** by itself. Scroll through. | **Header:** "Walkthrough Test 2 / Monthly report: Dec 2025", "Generated … by [email]", and "Actuals through Dec 2025, last synced …. Balances through Dec 2025." **1. Headlines:** Revenue €65,024.39, Net profit €4,099.18, Cash balance **€95,400.00**, Runway **7.8** (€12,150.00/month net cash burn, includes loans and owner funding). **2. Budget against actual, year to date** (the same figures as Compare): Revenue budget **€768,038.11** against actual **€724,564.25**, **−€43,473.86, −5.7%, ▼ Unfavourable**. Payroll **−€8,375.17, ▲ Favourable**. Marketing **+€2,697.78 (+17.6%), ▼ Unfavourable**. Net profit €121,493.67 budget against €94,279.19 actual (−€27,214.48, −22.4%, unfavourable). **3. Trend:** revenue and net profit Jan–Dec 2025, with the budget dashed. Month-end cash bars for Aug–Dec 2025: **€133,562.08, €131,850.00, €121,095.37, €108,180.12, €95,400.00**, with the runway beside them. **4. Scenarios:** "No scenarios saved for this budget." **5. Data quality:** "None"; excluded 3 accounts, €7,786.12 Dr; and the fixed line about not being audited. | Net profit on Test 2 is €4,099.18, not Test 1's €4,095.00, because 9900 is excluded there (see "Re-running steps 4 and 5"). Say that Marketing came in over a budget that was cut by 15%. |
+| 12 | 0:45 | **Print / save as PDF.** In the browser's print dialog choose **Save as PDF**, **A4**, **Portrait**, default margins, then **Save**. | A black-on-white A4 report of about two pages: no sidebar, menu or pickers; the tables at a small type size; the charts included. | Check the PDF once before the demo. You are checking it yourself; the print rules were measured, not seen as a PDF (`docs/reports/P3-REPORT.md`). |
 
 ### Do not click (Report)
 
 - **Download CSV** during the demo. It works (the same file as Compare's export), but it opens a
   download prompt.
-- **A month before 2025 on Test 1.** There are no actuals, so most figures are "—". Correct, but dull.
-- **The Report page on production.** It is still the placeholder until the switch is on in `main`.
+- **A month before 2025.** There are no actuals, so most figures are "—". Correct, but dull.
+- **The Report page on production** before phase-3 is merged. It is still the placeholder there.
 

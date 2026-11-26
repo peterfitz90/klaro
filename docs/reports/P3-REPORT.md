@@ -1,6 +1,8 @@
 # P3-REPORT: the monthly report
 
-Date: 26 Nov 2026. Branch: `phase-3`, from `main`. Merged into `preview`; **not merged to main.**
+Date: 26 Nov 2026. **Update:** `REPORT_LIVE` is now **on in `phase-3`**, after your review of the preview. Peter is checking the PDF print in parallel.
+
+Original date: 26 Nov 2026. Branch: `phase-3`, from `main`. Merged into `preview`; **not merged to main.**
 
 CI is green on GitHub Actions: [run 45803726028](https://github.com/peterfitz90/klaro/actions/runs/45803726028)
 on `b458d67`.
