@@ -213,6 +213,28 @@ describe('finding accounts', () => {
   });
 });
 
+describe('the P&L list and balance-only accounts (pre-demo fix)', () => {
+  it('a mapped account that only has balances is not in the P&L list, only in the balance section', async () => {
+    ROWS = [...ROWS, acc('1210', null, 'cash_bank', '0.00', 0)];   // account_map lists it (mapped, no actuals)
+    BAL = [bal('1210', 'Bank current account', 'cash_bank', '87150.00')];
+    show();
+    await screen.findByTestId('balance-status');
+    const pnl = within(screen.getByRole('table', { name: 'Accounts and their plan lines' }));
+    expect(pnl.queryByText('1210')).toBeNull();
+    expect(screen.queryByText('No actuals now; the mapping is kept.')).toBeNull();
+    expect(within(screen.getByRole('table', { name: 'Balance accounts and their plan lines' })).getByText('1210')).toBeTruthy();
+  });
+  it('a P&L account whose actuals were removed (no balances) still shows, with its mapping kept', async () => {
+    ROWS = [...ROWS, acc('6100', 'Advertising', 'marketing', '0.00', 0)];
+    BAL = [];
+    show();
+    await status();
+    const pnl = within(screen.getByRole('table', { name: 'Accounts and their plan lines' }));
+    expect(pnl.getByText('6100')).toBeTruthy();
+    expect(screen.getByText('No actuals now; the mapping is kept.')).toBeTruthy();
+  });
+});
+
 describe('balance accounts (Phase 2)', () => {
   beforeEach(() => {
     BAL = [bal('1100', 'Trade debtors', null, '31240.85'), bal('1210', 'Bank current account', null, '87150.00'), bal('1220', 'Bank deposit account', null, '8250.00')];

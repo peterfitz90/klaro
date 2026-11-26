@@ -3,6 +3,7 @@
 // an owner. Every load fails closed: an error is an error, never "no budgets".
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { SCENARIOS_LIVE } from '../../app/shell/kpiSwitch';
 import { EmptyState } from '../../app/shell/parts';
 import { entityPath } from '../../app/shell/tasks';
 import type { Period } from '../../engine';
@@ -37,7 +38,7 @@ export function PlanPage() {
     <section className="card" aria-labelledby="drivers-title" style={{ marginBottom: 16 }}>
       <div className="card-header"><h2 className="card-title" id="drivers-title">Drivers</h2></div>
       <div className="card-body">
-        <p className="f-hint">No drivers yet. Drivers are the assumptions behind the plan, such as growth per month or headcount; they come in a later phase.</p>
+        <p className="f-hint" data-testid="drivers-text">{driversText(SCENARIOS_LIVE)}</p>
       </div>
     </section>
   );
@@ -105,4 +106,11 @@ export function PlanPage() {
       {drivers}
     </>
   );
+}
+
+/** The Drivers card's text: with the Scenarios panel on, it points to it (Peter, 26 Nov 2026). */
+export function driversText(scenariosLive: boolean): string {
+  return scenariosLive
+    ? 'Scenarios above change revenue, payroll and other costs by a percentage. Monthly drivers, such as growth per month or headcount, come in a later phase.'
+    : 'No drivers yet. Drivers are the assumptions behind the plan, such as growth per month or headcount; they come in a later phase.';
 }

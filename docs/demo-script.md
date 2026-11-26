@@ -39,7 +39,7 @@ About 8 to 10 minutes, plus 2 for Scenarios. It runs on **klaro-preview.ledgrly.
 | # | Time | Click | What the audience sees | Rough edges to avoid |
 |---|---|---|---|---|
 | 1 | 0:30 | **Sign in** at klaro-preview.ledgrly.ie. | Klaro opens on Plan for the last entity used. | Sign in before the demo; the Clerk screen takes a few seconds. |
-| 2 | 0:45 | **Entity switcher** (top right). Pick **test 1**, then **Walkthrough Test 2**, then **Walkthrough Test 1**. | **test 1:** a big file (15,000 rows) with 1,249 accounts unmapped; Net profit is marked "Incomplete". **Walkthrough Test 2:** empty, so every tile shows "—", never 0. **Walkthrough Test 1:** the demo company. | Don't open Map accounts on test 1: the 1,250-account list is slow to scroll. |
+| 2 | 1:00 | **Entity switcher** (top right). Pick **test 1**. Then **+ Create entity**: name it **Walkthrough Test 3** (Ireland, EUR, year from January), then **Create entity**. Then switch to **Walkthrough Test 1**. | **test 1:** a big file (15,000 rows) with 1,249 accounts unmapped; Net profit is marked "Incomplete". **Walkthrough Test 3:** a brand-new, empty entity, so every tile shows "—", never 0. **Walkthrough Test 1:** the demo company. | Create Walkthrough Test 3 while signed in as the owner account; whoever creates an entity becomes its owner. **Walkthrough Test 2 is no longer empty** (see below), so don't use it to show "—". Don't open Map accounts on test 1: the 1,250-account list is slow to scroll. |
 | 3 | 0:45 | Stay on **Plan** and point at the **KPI strip**. | Revenue €65,024.39 and Net profit €4,095.00, "Actuals through Dec 2025". Cash balance and Runway show "—" with "No balances yet". | None. |
 | 4 | 1:30 | **Connect → Import.** Point at "Recent imports": the P&L file, type P&L. Choose **"Month-end balances"**, then **Choose a CSV file** → `sample-balances.csv`. The columns are guessed; click **Check the file**. *Optional:* first choose `sample-balances-broken.csv` to show the refusal. | **The check:** 36 balances, 3 accounts, Jan–Dec 2025, "Month-end (closing) balances, trial-balance sign". **Import 36 balances** gives "Imported… Balances through Dec 2025". **The broken file:** "3 problems found", lines 17–19 "2025-13 is not a real date", and Import stays disabled. | Click **Import** only once. A second import is harmless (it replaces the same months), but it adds a line to Recent imports. |
 | 5 | 1:30 | **Map the balance accounts.** The section is at the **bottom** of Map accounts. First, briefly open **Plan** to show the cash tiles. Then back on Map accounts: **Use all 3 suggestions** → **Save 3 changes**. Then **Plan**. | **Before mapping:** "3 of 3 balance accounts unmapped", and the suggestions are labelled "Suggested: Cash and bank" or "Not cash (left out)". On Plan, Cash balance and Runway show "—" with "Map your bank accounts to Cash and bank". **After mapping:** Cash balance **€95,400.00**, "Balances through Dec 2025". Runway **7.8**, with "€12,150.00/month net cash burn (includes loans and owner funding)". | **Say:** the burn includes loans and owner funding; profit is positive while cash falls. **Say:** the runway is truncated, never rounded up. Scroll down to the balance section; it is below the 17 P&L accounts. |
@@ -48,14 +48,40 @@ About 8 to 10 minutes, plus 2 for Scenarios. It runs on **klaro-preview.ledgrly.
 | 8 | 0:30 | Back on **Plan**: recap the four tiles. | Revenue, Net profit, Cash balance and Runway, each saying which month it is from. | None. |
 
 **Re-running steps 4 and 5 after the balances are loaded:** Walkthrough Test 1 keeps its balances, so
-for a fresh journey use **Walkthrough Test 2**:
-1. Connect → **Add a CSV connection**. This needs an owner.
-2. Import the P&L sample (Download the sample file → import).
-3. Import the balances sample.
-4. Map the P&L accounts with **Use all suggestions** plus 9900 → excluded, then map the balance
-   accounts.
+it shows the end state.
+
+**Walkthrough Test 2 is no longer empty.** It was loaded during your review (26 Nov 2026) with:
+- the P&L sample;
+- the balances sample;
+- a budget, "Review budget 2026", with two hand edits.
+
+**Its figures differ from Test 1's,** and the difference is account **9900 Clearing 7**:
+
+| | 9900 mapped to | Net profit (Dec 2025) | Excluded accounts |
+|---|---|---|---|
+| Walkthrough Test 1 | **Other operating costs** | **€4,095.00** | 2, net €6,936.49 Dr |
+| Walkthrough Test 2 | Not in the P&L (excluded) | €4,099.18 | 3, net €7,786.12 Dr |
+
+Mapping 9900 to Other operating costs reproduces Test 1's €4,095.00. I checked both mappings in the
+database on 26 Nov 2026.
+
+**For a fresh journey, use the new Walkthrough Test 3** from step 2:
+1. Connect → **Add a CSV connection**. This needs the owner.
+2. Import the P&L sample: Download the sample file, then import it.
+3. Map the P&L accounts with **Use all suggestions**. Then set **9900 Clearing 7 → Other operating
+   costs**, so the figures match Test 1 (€4,095.00), and Save.
+4. Import the balances sample, then map the balance accounts (Use all 3 suggestions → Save).
 
 That adds about 2 minutes.
+
+## Demo data to keep (nothing is deleted)
+
+- **test 1**
+- **Walkthrough Test 1**
+- **Walkthrough Test 2**
+- **Walkthrough Test 3** (created live in step 2)
+
+These stay as the prototype's demo data. The proposed delete script is not run.
 
 ## Final 2 minutes: Scenarios (Phase 3 slice)
 
