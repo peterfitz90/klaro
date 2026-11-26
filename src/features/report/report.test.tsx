@@ -110,6 +110,8 @@ describe('Report: switch and header', () => {
     expect((screen.getByLabelText('Month') as HTMLSelectElement).value).toBe('2026-03-01');
     await waitFor(() => expect((screen.getByLabelText('Budget') as HTMLSelectElement).value).toBe(V1.id));
     expect(planApi.variance).toHaveBeenLastCalledWith(ENTITY.id, V1.id, '2026-01-01', '2026-12-01');
+    // One full-year load, with the right budget: never first with another budget.
+    expect(planApi.variance.mock.calls.filter(c => c[2] !== c[3]).map(c => c[1])).toEqual([V1.id]);
   });
   it('opening the report writes nothing, and a viewer sees every section', async () => {
     show('viewer');
@@ -138,7 +140,7 @@ describe('Report: Section 2 is exactly Compare', () => {
     show();
     await screen.findByTestId('report-bva');
     await waitFor(() => expect((screen.getByLabelText('Budget') as HTMLSelectElement).value).toBe(V1.id));
-    fireEvent.click(screen.getByRole('button', { name: 'Download CSV (budget against actual)' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Download CSV (budget against actual)' }));
     expect(exported[0]).toEqual(compareCsvRows(toLines(FIG), MONTHS_2026, '2026-03-01', () => false));
   });
   it('no budget: the budget figures show "—" and say why', async () => {

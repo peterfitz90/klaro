@@ -103,6 +103,8 @@ doesn't cover Dec 2025.
   €95,400.00. These match the balances sample.
 - **Excluded:** 3 accounts, €7,786.12 Dr.
 
+**Fixed after CI:** a test race on the CSV button. The page loaded the figures twice: once with a fallback budget, then with the right one. It now waits until the default budget is known, so there is one load and never a flash of another budget. A test checks this.
+
 **Fixed during the walk-through:**
 - **The tables were too wide for A4 when printed** (1,044px against 718px); now they are 699px.
 - **The legend icons stretched to the chart width.**

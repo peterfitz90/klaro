@@ -127,11 +127,14 @@ export function MonthlyReport({ generatedBy, today, now }: MonthlyReportProps) {
     return null;
   }, [ctx, linesByBudget, month]);
   const version = versionChoice === undefined ? defaultVersion : versionChoice;
+  // The figures wait until the default budget is known (one load, never a flash of another budget).
+  const versionReady = versionChoice !== undefined || coverage.status === 'error' || (coverage.status === 'ok' && coverage.data !== null);
   const versionName = ctx?.budgets.find(b => b.id === version)?.name ?? null;
 
   const figures = useLoad(
-    async () => (ctx ? toLines(await variance(entity.id, version, fyStart, addMonths(fyStart, 11))) : null),
-    [entity.id, ctx === null, version, fyStart], err => callMessage(err, 'compare'));
+    async () => (ctx && versionReady ? toLines(await variance(entity.id, version, fyStart, addMonths(fyStart, 11))) : null),
+    [entity.id, ctx === null, version, fyStart, versionReady], err => callMessage(err, 'compare'));
+  const figuresLoading = figures.status === 'loading' || (figures.status === 'ok' && figures.data === null);
   const kpis = useLoad(() => loadKpis(entity.id, currentMonth, entity.currency), [entity.id, currentMonth], err => callMessage(err, 'kpi'));
   const cash = useLoad(async () => {
     const rows = await cashPosition(entity.id);
@@ -224,7 +227,7 @@ export function MonthlyReport({ generatedBy, today, now }: MonthlyReportProps) {
       </Section>
 
       <Section title={`2. Budget against actual: ${monthLabel(month)} and year to date${versionName ? ` (${versionName})` : ' (no budget)'}`} id={`${ids}-s2`}>
-        {figures.status === 'loading' && <p className="loading" role="status">Loading the figures…</p>}
+        {figuresLoading && <p className="loading" role="status">Loading the figures…</p>}
         {figures.status === 'error' && <Failed message={figures.message} retry={figures.reload} />}
         {figures.status === 'ok' && figures.data && (
           <BudgetActual lines={figures.data} month={month} yearStart={fyStart} money={money} hasVersion={version !== null}
@@ -236,7 +239,7 @@ export function MonthlyReport({ generatedBy, today, now }: MonthlyReportProps) {
         <div className="report-charts">
           <div>
             <h3 className="step-title">Revenue and net profit, {monthLabel(fyStart)} to {monthLabel(month)}</h3>
-            {figures.status === 'loading' && <p className="loading" role="status">Loading…</p>}
+            {figuresLoading && <p className="loading" role="status">Loading…</p>}
             {figures.status === 'error' && <Failed message={figures.message} retry={figures.reload} />}
             {figures.status === 'ok' && figures.data && <RevenueProfitChart lines={figures.data} months={yearToMonth(fyStart, month)} money={money} />}
           </div>
