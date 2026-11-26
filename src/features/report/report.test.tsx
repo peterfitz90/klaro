@@ -87,10 +87,11 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('Report: switch and header', () => {
-  it('is off until its own walk-through passes; off shows the placeholder', () => {
-    expect(REPORT_LIVE).toBe(false);
+  it('is on (walk-through and review passed, 26 Nov 2026): Report shows the monthly report, not the placeholder', async () => {
+    expect(REPORT_LIVE).toBe(true);
     render(<MemoryRouter><EntityContext.Provider value={{ entity: ENTITY, role: 'owner', entities: [ENTITY] }}><ReportPage /></EntityContext.Provider></MemoryRouter>);
-    expect(screen.getByText('No reports yet')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Monthly report: Mar 2026' })).toBeTruthy();
+    expect(screen.queryByText('No reports yet')).toBeNull();
   });
   it('header: entity, month, who and when, and the sources line', async () => {
     show();

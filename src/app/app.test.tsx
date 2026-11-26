@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // The app's routes and fail-closed behaviour, with Clerk and the entity API replaced by fakes.
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -182,8 +182,8 @@ describe('shell extras', () => {
     const input = await screen.findByRole('combobox');
     fireEvent.change(input, { target: { value: 'report' } });
     fireEvent.keyDown(input, { key: 'Enter' });
-    await screen.findByText('No reports yet');
-    expect(screen.getByTestId('where').textContent).toBe(`/e/${A.id}/report`);
+    // Report is live (REPORT_LIVE): wait for the route rather than the old placeholder text.
+    await waitFor(() => expect(screen.getByTestId('where').textContent).toBe(`/e/${A.id}/report`));
     fireEvent.keyDown(window, { key: 'k', metaKey: true });
     fireEvent.keyDown(await screen.findByRole('combobox'), { key: 'Escape' });
     expect(screen.queryByRole('combobox')).toBeNull();
