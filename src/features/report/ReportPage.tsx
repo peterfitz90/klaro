@@ -17,7 +17,7 @@ import { entityPath } from '../../app/shell/tasks';
 import { downloadCSV } from '../../design/downloadCSV';
 import {
   addMonths, applyScenario, cashKpis, DRIVER_DEFS, DRIVER_KEYS, fiscalYearStart, formatMoney, formatPct, INDICATIVE_LABEL, linearScale, monthOf,
-  NO_CHANGE, parsePercent, qualityNotes, REPORT_FOOTNOTE, sumCells, summarise as summariseScenario, toCents, toLines, yearToMonth,
+  NO_CHANGE, parsePercent, qualityNotes, REPORT_FOOTNOTE, scenarioOrder, sumCells, summarise as summariseScenario, toCents, toLines, yearToMonth,
   type CashKpis, type CashRow, type Cell, type Drivers, type Line, type Period,
 } from '../../engine';
 import { callMessage } from '../../lib/errors';
@@ -450,7 +450,7 @@ function ScenarioTable({ data, lines, months, money, cash, cashError }: {
         <table className="gl-table report-table" aria-label="Saved scenarios compared" data-testid="report-scenarios">
           <thead><tr><th scope="col">Scenario</th>{DRIVER_KEYS.map(k => <th scope="col" className="r" key={k}>{DRIVER_DEFS[k].label} %</th>)}<th scope="col" className="r">Revenue</th><th scope="col" className="r">Total costs</th><th scope="col" className="r">Net profit</th><th scope="col" className="r">Closing cash, month 12 (indicative)</th></tr></thead>
           <tbody>
-            {data.scenarios.map(s => {
+            {[...data.scenarios].sort(scenarioOrder).map(s => {
               const d = driversFor(s.id, s.is_base);
               const sum = d ? summariseScenario(applyScenario(baseLines, d), cash) : null;
               return (
