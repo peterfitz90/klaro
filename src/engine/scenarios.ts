@@ -84,3 +84,9 @@ export function summarise(lines: ReadonlyMap<string, readonly bigint[]>, cashBal
   const netProfit = revenue - costs;
   return { revenue, costs, netProfit, closingCash: cashBalance === null ? null : cashBalance + netProfit };
 }
+
+/** Display order: Base first, then Upside, Downside, then the others by name (the Report's table). */
+export function scenarioOrder(a: { name: string; is_base: boolean }, b: { name: string; is_base: boolean }): number {
+  const rank = (s: { name: string; is_base: boolean }) => (s.is_base ? 0 : s.name === 'Upside' ? 1 : s.name === 'Downside' ? 2 : 3);
+  return rank(a) - rank(b) || a.name.localeCompare(b.name, 'en-IE');
+}

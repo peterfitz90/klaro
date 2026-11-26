@@ -2,7 +2,7 @@
 // rule (leftover cents to the last month), the driver-to-line rules and the indicative cash.
 import { describe, expect, it } from 'vitest';
 import { toCents } from './money';
-import { applyScenario, NO_CHANGE, parsePercent, percentText, summarise, type Drivers } from './scenarios';
+import { applyScenario, NO_CHANGE, parsePercent, percentText, scenarioOrder, summarise, type Drivers } from './scenarios';
 
 const twelve = (amount: string) => Array.from({ length: 12 }, () => toCents(amount));
 // Stored sign: revenue negative (credit), costs positive.
@@ -75,3 +75,11 @@ describe('scenarios: rules', () => {
     expect(percentText(1000n)).toBe('10');
   });
 });
+
+describe('scenarioOrder', () => {
+  it('Base first, then Upside, Downside, then the others by name, whatever order they were saved in', () => {
+    const saved = ['Hiring plan', 'Upside', 'Base', 'Downside', 'Expansion'].map(name => ({ name, is_base: name === 'Base' }));
+    expect([...saved].sort(scenarioOrder).map(s => s.name)).toEqual(['Base', 'Upside', 'Downside', 'Expansion', 'Hiring plan']);
+  });
+});
+

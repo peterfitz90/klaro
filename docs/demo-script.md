@@ -1,11 +1,13 @@
 # Klaro demo script (prototype, 27 Nov 2026)
 
-About 8 to 10 minutes, plus 2 for Scenarios. It runs on **klaro-preview.ledgrly.ie**, the `preview` branch.
+About 13 minutes in all: the main walkthrough (steps 1–8) about 9, Scenarios 2, Report 2. The
+"Extras if there is time" at the end are optional. It runs on **klaro-preview.ledgrly.ie**, the
+`preview` branch.
 
 **Preview or production?**
-- **Production** (klaro.ledgrly.ie) serves `main`, so it shows Phase 1 only until you approve the
-  phase-2 merge. Steps 1–3 and 6–7 work the same there. Steps 4, 5 and 8 (balances, the cash tiles
-  and the budget save) need the merge first.
+- **Production** (klaro.ledgrly.ie) serves `main`, which has everything up to Scenarios (phase-2,
+  merged). Only the **Report** (phase-3) is still the placeholder on production, until phase-3 is
+  merged.
 - **Preview and production share one database.** Anything imported, mapped or saved in the demo
   stays, on both.
 
@@ -81,6 +83,10 @@ That adds about 2 minutes.
 - **Walkthrough Test 2**
 - **Walkthrough Test 3** (created live in step 2)
 - **"Budget 2025 (stretch)"** on Walkthrough Test 2 (created during the review, 26 Nov 2026; the Report demo budget)
+- **Its three saved scenarios:** Upside, Downside and Hiring plan (saved during the review, 26 Nov
+  2026)
+- **The Upside and Downside scenarios on Walkthrough Test 1's "Budget 2025 (test)"** (saved during my
+  walk-through)
 
 These stay as the prototype's demo data. The proposed delete script is not run.
 
@@ -99,6 +105,28 @@ on the preview (26 Nov 2026).
 |---|---|---|---|---|
 | 9 | 1:15 | **Plan.** In the budget picker choose **"Budget 2025 (test)"**, then scroll below the grid to **Scenarios: Jan 2025 to Dec 2025**. Change **Upside: Payroll change %** from 5 to **8**, then **Save scenarios**. | Base, Upside and Downside side by side. Base: Revenue €724,564.25, Total costs €631,134.69, Net profit €93,429.56. Upside before the change: €797,020.68, €671,548.28, €125,472.40. Downside: €652,107.83, €604,679.71, €47,428.12. **Closing cash, month 12 (indicative):** after step 5, €95,400.00 + the year's profit (Base €188,829.56, Upside €220,872.40, Downside €142,828.12), with the caveat "indicative: profit used as a proxy for cash; ignores timing, VAT, tax, capex and financing". Without balances, it shows "—" and says why. After the change: "Scenarios saved". | Say that cost of sales moves with revenue; marketing, rent, interest and tax don't move. Change one figure at a time: the table updates as you type. |
 | 10 | 0:45 | Choose **"Budget Jan 2026 to Dec 2026"**, the one locked in step 6. | Its scenarios can be seen but not changed: "This budget is locked: you can see its scenarios, but they cannot be changed or saved." Upside and Downside show as "not saved yet", at 0%. | None. |
+
+**Alternative on Walkthrough Test 2 (it has cash, so closing cash shows).**
+
+During your review, three scenarios were saved on Test 2's "**Budget 2025 (stretch)**" (shared
+database). I checked them against the database on 26 Nov 2026: the budget lines and drivers,
+recomputed with the engine's rounding, and cash €95,400.00.
+
+**On the Plan page they are listed in the order they were saved:** Base, Hiring plan, Upside,
+Downside. The Report orders them Base, Upside, Downside, then the others by name.
+
+| Scenario | Drivers (revenue / payroll / other costs) | Revenue | Total costs | Net profit | Closing cash, month 12 (indicative) |
+|---|---|---|---|---|---|
+| Base | 0 / 0 / 0 | €768,038.11 | €646,544.44 | €121,493.67 | €216,893.67 |
+| Upside | +8% / +4% / 0% | €829,481.16 | €680,056.88 | €149,424.28 | €244,824.28 |
+| Downside | −12% / 0% / +5% | €675,873.54 | €613,945.11 | €61,928.43 | €157,328.43 |
+| Hiring plan | +15% / +20% / +5% | €883,243.83 | €745,740.18 | €137,503.65 | €232,903.65 |
+
+**Click path:** Entity switcher → **Walkthrough Test 2** → **Plan**. In the budget picker choose
+**"Budget 2025 (stretch)"**, then scroll to **Scenarios: Jan 2025 to Dec 2025**.
+
+**The point to make:** the Hiring plan brings in more revenue than Upside but makes less profit,
+because payroll rises 20%. Don't save changes here unless you mean to: these three are demo data.
 
 ### Do not click (Scenarios)
 
@@ -146,7 +174,15 @@ PDF you print, so present from the account you are happy to show.
 
 | # | Time | Click | What the audience sees | Rough edges to avoid |
 |---|---|---|---|---|
-| 11 | 1:15 | **Entity switcher → Walkthrough Test 2 → Report.** Leave Month on **Dec 2025**; Budget picks **"Budget 2025 (stretch)"** by itself. Scroll through. | **Header:** "Walkthrough Test 2 / Monthly report: Dec 2025", "Generated … by [email]", and "Actuals through Dec 2025, last synced …. Balances through Dec 2025." **1. Headlines:** Revenue €65,024.39, Net profit €4,099.18, Cash balance **€95,400.00**, Runway **7.8** (€12,150.00/month net cash burn, includes loans and owner funding). **2. Budget against actual, year to date** (the same figures as Compare): Revenue budget **€768,038.11** against actual **€724,564.25**, **−€43,473.86, −5.7%, ▼ Unfavourable**. Payroll **−€8,375.17, ▲ Favourable**. Marketing **+€2,697.78 (+17.6%), ▼ Unfavourable**. Net profit €121,493.67 budget against €94,279.19 actual (−€27,214.48, −22.4%, unfavourable). **3. Trend:** revenue and net profit Jan–Dec 2025, with the budget dashed. Month-end cash bars for Aug–Dec 2025: **€133,562.08, €131,850.00, €121,095.37, €108,180.12, €95,400.00**, with the runway beside them. **4. Scenarios:** "No scenarios saved for this budget." **5. Data quality:** "None"; excluded 3 accounts, €7,786.12 Dr; and the fixed line about not being audited. | Net profit on Test 2 is €4,099.18, not Test 1's €4,095.00, because 9900 is excluded there (see "Re-running steps 4 and 5"). Say that Marketing came in over a budget that was cut by 15%. |
+| 11 | 1:15 | **Entity switcher → Walkthrough Test 2 → Report.** Leave Month on **Dec 2025**; Budget picks **"Budget 2025 (stretch)"** by itself. Scroll through. | **Header:** "Walkthrough Test 2 / Monthly report: Dec 2025", "Generated … by [email]", and "Actuals through Dec 2025, last synced …. Balances through Dec 2025." **1. Headlines:** Revenue €65,024.39, Net profit €4,099.18, Cash balance **€95,400.00**, Runway **7.8** (€12,150.00/month net cash burn, includes loans and owner funding). **2. Budget against actual, year to date** (the same figures as Compare): Revenue budget **€768,038.11** against actual **€724,564.25**, **−€43,473.86, −5.7%, ▼ Unfavourable**. Payroll **−€8,375.17, ▲ Favourable**. Marketing **+€2,697.78 (+17.6%), ▼ Unfavourable**. Net profit €121,493.67 budget against €94,279.19 actual (−€27,214.48, −22.4%, unfavourable). **3. Trend:** revenue and net profit Jan–Dec 2025, with the budget dashed. Month-end cash bars for Aug–Dec 2025: **€133,562.08, €131,850.00, €121,095.37, €108,180.12, €95,400.00**, with the runway beside them. **4. Scenarios**, in the order Base, Upside, Downside, Hiring plan:
+
+- Base: €768,038.11 / €646,544.44 / €121,493.67 / €216,893.67
+- Upside: €829,481.16 / €680,056.88 / €149,424.28 / €244,824.28
+- Downside: €675,873.54 / €613,945.11 / €61,928.43 / €157,328.43
+- Hiring plan: €883,243.83 / €745,740.18 / €137,503.65 / €232,903.65
+
+The figures are revenue, total costs, net profit and closing cash; the closing cash shows, because
+Test 2 has cash. The indicative caveat is under the table. **5. Data quality:** "None"; excluded 3 accounts, €7,786.12 Dr; and the fixed line about not being audited. | Net profit on Test 2 is €4,099.18, not Test 1's €4,095.00, because 9900 is excluded there (see "Re-running steps 4 and 5"). Say that Marketing came in over a budget that was cut by 15%. |
 | 12 | 0:45 | **Print / save as PDF.** In the browser's print dialog choose **Save as PDF**, **A4**, **Portrait**, default margins, then **Save**. | A black-on-white A4 report of about two pages: no sidebar, menu or pickers; the tables at a small type size; the charts included. | Check the PDF once before the demo. You are checking it yourself; the print rules were measured, not seen as a PDF (`docs/reports/P3-REPORT.md`). |
 
 ### Do not click (Report)
@@ -155,4 +191,17 @@ PDF you print, so present from the account you are happy to show.
   download prompt.
 - **A month before 2025.** There are no actuals, so most figures are "—". Correct, but dull.
 - **The Report page on production** before phase-3 is merged. It is still the placeholder there.
+
+## Extras if there is time (optional, about 1 minute each)
+
+Each of these was checked on the preview on 26 Nov 2026, read-only. Run them on **Walkthrough Test
+2**.
+
+| Extra | Click path | What the audience sees | Rough edge |
+|---|---|---|---|
+| **(a) Every month** | **Compare** → leave Budget on "Budget 2025 (stretch)" → **SHOW: Every month** → Figure: **Variance** (or Actual, Budget, Variance %) | A grid of all 12 months plus YTD for every line. Revenue is under budget every month: for example Jan 2025 −€3,261.54, "▼ Unfavourable", each with an arrow and the word. | It is wide: on a small screen it scrolls sideways inside its box. Switch back to "Month and YTD" before moving on. |
+| **(b) Exports** | **Compare → Export ▾ → Download CSV**. Then **Report → Download CSV (budget against actual)** | Compare's menu has one item, "Download CSV": every line, every month, and the year to date. The Report's button saves the same file format, for its month and budget. | Each opens the browser's download prompt. Mention it and skip the click if the room can't see the downloads bar. |
+| **(c) Go to… palette** | Press **Ctrl+K** (or Cmd+K), or click **Go to…** at the top. Type "rep" and press **Enter**; **Escape** closes it | A small search box listing Plan, Compare, Cash, Report and Connect for the entity, and "All entities". Enter opens the page. | Cash is in the list, and it is still the placeholder: don't choose it. |
+| **(d) New budget from actuals** (**Test 2 only**) | **Plan → New budget from actuals** → a name (for example "Demo budget 2026") → Actuals: **Jan 2025 to Dec 2025**, Budget: Jan 2026 to Dec 2026 → type percentages in the **Uplift %** column (for example Revenue 5, Payroll 3) → **Create the budget** | Each line's 12 months of actuals, the uplift, and the budget it gives, line by line, before anything is saved. Then the new budget's grid, with the months adding up exactly. | **This saves a new budget** (demo data from then on). Do it on Test 2 only. A fresh budget has no hand edits. **Never use Rebuild from actuals… on a budget that was edited by hand:** it replaces the edits (it warns first). **Cancel** closes the form without saving. |
+| **(e) Import history and template** | **Connect → Import** → scroll to **Recent imports**; then **Download the template** | Recent imports lists **when** each file was imported, the file name, its type (P&L or Balances), the months it replaced, and the rows removed and added. On Test 2: `sample-balances.csv` (Balances, 0 removed, 36 added) and `sample-actuals.csv` (P&L, 0 removed, 193 added). The template is a small CSV with the columns account_code, account_name, month and amount. | Recent imports does **not** show **who** ran an import; don't promise that. The template button gives the P&L template; for the balances template choose "Month-end balances" first. The download prompt appears. |
 

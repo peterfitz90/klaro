@@ -220,7 +220,8 @@ describe('Report: Scenarios', () => {
     expect(screen.getByText('No scenarios saved for this budget.')).toBeTruthy();
   });
   it('the saved scenarios, read-only, with the indicative closing cash and its caveat', async () => {
-    scenApi.listScenarios.mockImplementation(async () => [{ id: 'base', name: 'Base', is_base: true }, { id: 's-up', name: 'Upside', is_base: false }]);
+    // Saved out of order on purpose: the report shows Base first.
+    scenApi.listScenarios.mockImplementation(async () => [{ id: 's-up', name: 'Upside', is_base: false }, { id: 'base', name: 'Base', is_base: true }]);
     scenApi.listValues.mockImplementation(async () => [
       { driver_id: 'd-rev', scenario_id: 's-up', value: 10 }, { driver_id: 'd-pay', scenario_id: 's-up', value: '5.000000' }, { driver_id: 'd-oth', scenario_id: 's-up', value: -3.33 },
     ]);
@@ -233,6 +234,7 @@ describe('Report: Scenarios', () => {
     expect(row('Upside')).toContain('€13,200.00€12,140.39€1,059.61€96,459.61');
     expect(screen.getByText(/indicative: profit used as a proxy for cash; ignores timing, VAT, tax, capex and financing/)).toBeTruthy();
     expect(within(t).queryByRole('textbox')).toBeNull();
+    expect(within(t).getAllByRole('rowheader').map(r => r.textContent?.replace(' (the budget as it is)', ''))).toEqual(['Base', 'Upside']);
     for (const w of WRITES) expect(w).not.toHaveBeenCalled();
   });
   it('a failed scenarios call: its own error', async () => {
