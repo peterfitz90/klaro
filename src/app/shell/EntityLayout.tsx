@@ -14,7 +14,7 @@ import { ErrorBoundary } from '../ErrorBoundary';
 import { CommandPalette, usePaletteHotkey } from './CommandPalette';
 import { EntitySwitcher } from './EntitySwitcher';
 import { LiveKpiStrip } from '../../features/kpi/LiveKpiStrip';
-import { KPI_STRIP_LIVE, REPORT_LIVE } from './kpiSwitch';
+import { CASH_PAGE_LIVE, KPI_STRIP_LIVE, REPORT_LIVE } from './kpiSwitch';
 import { KpiStrip } from './parts';
 import { entityPath, paletteItems, TASKS } from './tasks';
 
@@ -74,7 +74,7 @@ function Shell({ current }: { current: CurrentEntity }) {
   const { entity } = current;
   const task = TASKS.find(t => location.pathname.startsWith(entityPath(entity.id, t.path)));
   // The monthly report has its own Headlines section (the same tiles), so the strip is not repeated there.
-  const showKpis = task !== undefined && task.group === 'tasks' && !(REPORT_LIVE && task.path === 'report');
+  const showKpis = task !== undefined && task.group === 'tasks' && !(REPORT_LIVE && task.path === 'report') && !(CASH_PAGE_LIVE && task.path === 'cash');
 
   return (
     <div className="app">

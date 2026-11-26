@@ -128,7 +128,8 @@ describe('entities', () => {
   });
   it('switching entity keeps the page', async () => {
     at(`/e/${A.id}/cash`);
-    await screen.findByText('No cash forecast yet');
+    // The Cash page is live (CASH_PAGE_LIVE): wait for its own text (no database here) instead of the old placeholder.
+    await screen.findByText(/The cash figures could not be loaded/);
     fireEvent.click(screen.getByTitle('Switch entity'));
     fireEvent.click(screen.getByRole('link', { name: /Brit Co/ }));
     await screen.findByText('UK · GBP');

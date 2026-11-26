@@ -17,3 +17,7 @@ export const SCENARIOS_LIVE = true;
 // preview passed and the review was done (26 Nov 2026), so it is on; Peter checks the PDF print in
 // parallel. When false, Report shows its placeholder.
 export const REPORT_LIVE = true;
+
+// Phase 4: the Cash page (src/features/cash/CashPage.tsx). Its walk-through on Walkthrough Test 2 passed
+// and Peter approved it for production (26 Nov 2026), so it is on. When false, Cash shows its placeholder.
+export const CASH_PAGE_LIVE = true;
