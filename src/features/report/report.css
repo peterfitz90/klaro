@@ -23,6 +23,17 @@
 .report-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-muted); margin-top: 4px; }
 .report-legend svg { width: 26px; height: 10px; flex: none; }
 .legend-item { display: inline-flex; align-items: center; gap: 4px; }
+/* Cash page (Phase 4): scenario lines, the runs-out marker, print-only notes. */
+.report-chart .series-scn-1 polyline, .report-legend .series-scn-1 line { stroke: #f59e0b; }
+.report-chart .series-scn-2 polyline, .report-legend .series-scn-2 line { stroke: #ef4444; }
+.report-chart .series-scn-3 polyline, .report-legend .series-scn-3 line { stroke: #a855f7; }
+.report-chart .series-scn-0 polyline, .report-legend .series-scn-0 line { stroke: #64748b; }
+.report-chart [class*="series-scn-"] circle, .report-chart [class*="series-scn-"] rect, .report-chart [class*="series-scn-"] polygon, .report-chart [class*="series-scn-"] path { fill: none; stroke: currentColor; stroke-width: 1.4; }
+.report-chart .series-scn-1 { color: #f59e0b; } .report-chart .series-scn-2 { color: #ef4444; } .report-chart .series-scn-3 { color: #a855f7; } .report-chart .series-scn-0 { color: #64748b; }
+.report-chart .series-whatif polyline { stroke-width: 2.4; }
+.report-chart .runs-out line { stroke: var(--danger); stroke-width: 1.2; }
+.report-chart .runs-out text { fill: var(--danger); }
+.print-only { display: none; }
 .report-cash { display: grid; grid-template-columns: minmax(0, 2fr) minmax(140px, 1fr); gap: 12px; align-items: start; }
 .report-notes { margin: 0 0 0 18px; }
 .report-kpis { margin-bottom: 0; }
@@ -104,4 +115,11 @@
   .report-section { break-inside: auto; }
   .report .kpi-grid { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 6px !important; }
   .report a { text-decoration: none; }
+  /* Cash page: scenario lines darkened for paper (each also has its own dash pattern, marker and name). */
+  .report .series-scn-1 polyline, .report .report-legend .series-scn-1 line { stroke: #b45309 !important; }
+  .report .series-scn-2 polyline, .report .report-legend .series-scn-2 line { stroke: #b91c1c !important; }
+  .report .series-scn-3 polyline, .report .report-legend .series-scn-3 line { stroke: #7e22ce !important; }
+  .report .series-scn-0 polyline, .report .report-legend .series-scn-0 line { stroke: #475569 !important; }
+  .report .runs-out line { stroke: #b91c1c !important; } .report .runs-out text { fill: #b91c1c !important; }
+  .report .print-only { display: block !important; }
 }

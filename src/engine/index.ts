@@ -14,3 +14,4 @@ export * from './cash';
 export * from './balances';
 export * from './scenarios';
 export * from './report';
+export * from './cashProjection';
