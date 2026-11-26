@@ -83,10 +83,11 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('Cash page: switch, header and Cash now', () => {
-  it('is off until its own walk-through passes; off shows the placeholder', () => {
-    expect(CASH_PAGE_LIVE).toBe(false);
+  it('is on (walk-through passed, approved for production 26 Nov 2026): Cash shows the page, not the placeholder', async () => {
+    expect(CASH_PAGE_LIVE).toBe(true);
     render(<MemoryRouter><EntityContext.Provider value={{ entity: ENTITY, role: 'owner', entities: [ENTITY] }}><CashPage /></EntityContext.Provider></MemoryRouter>);
-    expect(screen.getByText('No cash forecast yet')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Cash: Jan 2025 to Dec 2026' })).toBeTruthy();
+    expect(screen.queryByText('No cash forecast yet')).toBeNull();
   });
   it('header: entity, "Cash: [month] to [month]", who and when, and the sources', async () => {
     show();
