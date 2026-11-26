@@ -68,12 +68,12 @@
   .report .kpi-card::before { background: var(--print-accent) !important; height: 3px; }
   .report .kpi-card:has(.kpi-value[aria-label="No figure"])::before { background: #9ca3af !important; }
 
-  /* Tables: tinted header rows; favourable and unfavourable in colour, words and arrows kept. */
+  /* Tables: tinted header rows; favourable and unfavourable in colour, words and arrows kept. Colour
+     only: no extra weight or size, so the table keeps the geometry Peter checked in print. */
   .report table { width: 100%; table-layout: auto; min-width: 0 !important; }
   .report thead th { background: var(--print-tint-head) !important; }
-  .report .row-total th, .report .row-total td { font-weight: 600; }
-  .report .fav-good { color: var(--print-good) !important; font-weight: 600; }
-  .report .fav-bad { color: var(--print-bad) !important; font-weight: 600; }
+    .report .fav-good { color: var(--print-good) !important; }
+  .report .fav-bad { color: var(--print-bad) !important; }
   /* Measured at A4 content width (190 mm): 7.5pt cells keep the 11-column table inside the page. */
   .report th, .report td, .report .mono { font-size: 7.5pt !important; padding: 2px 3px !important; white-space: normal !important; min-width: 0 !important; }
   .report td.mono, .report .fav { white-space: nowrap !important; }
