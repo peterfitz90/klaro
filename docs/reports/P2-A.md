@@ -1,4 +1,71 @@
-# P2-A: Phase 2A database (0004), built and tested, NOT applied
+# P2-A: Phase 2A database (0004)
+
+## Round 3 (26 Nov 2026): 0004 APPLIED
+
+Approved by you on 26 Nov 2026.
+
+### The apply
+
+- **Bundle:** `db/out/apply_0004.sql`, sha256
+  `2c721ddd852c3d652cacba100b49ac8885b6e19b51fb71fec4778c20478ebb90`, 597 lines. It is built from 0004
+  sha256 `946fd7b686aeeb0515058ab410e14c0fc307011796feb5aff2deb7abea260333`.
+- **Before sending:** I checked the file's sha256 on disk (matched) and read the whole file. The tree was
+  clean.
+- **How it was sent:** once, through the connector, as plain SQL: BEGIN; 0004; the schema_migrations row;
+  `apply_checks_0004.sql`; COMMIT.
+- **Exact result:** `[]`. The transaction committed, and none of the assertions before COMMIT raised.
+- **Byte-check** (`scripts/check-sent.mjs` against the session transcript):
+  `2026-11-26T09:22:54.205Z  44686 chars  sha256 2c721ddd852c3d65  matches: apply_0004.sql`.
+- **Recorded in `fpa.schema_migrations`:** `0004_fpa_balances_cash.sql = 946fd7b6…0333 @ 2026-11-26 09:22:58.706572+00`.
+
+### Read-only check after the apply
+
+| Check | Expected | Found |
+|---|---|---|
+| Supabase migration history | 102 | **102** |
+| `fpa.schema_migrations` | 0001, 0003, 0004 with the repo checksums | 0001 `afacaac2…` (23 Nov 14:50:19), 0003 `5ae7ea50…` (25 Nov 09:03:33), 0004 `946fd7b6…` (26 Nov 09:22:58): **all match** |
+| Plan lines | 14 | **14** |
+| fpa functions | 31 | **31** |
+| Tables with row security | 17 of 17 | **17 of 17** |
+| Policies | 43, all TO authenticated | **43, all TO authenticated** |
+| `fpa.balances_monthly` | exists, no rows | **exists, 0 rows** |
+| `variance` body md5 | `cf5f1382…` | **`cf5f13827e3bf47a1b00248484807691`** |
+| New function body md5s (live vs the repo file) | equal | import_balances `8f7d453b…`, balance_accounts `00423b82…`, cash_position `b6a96532…`, save_budget_lines `a4ccfcdd…`: **all equal** |
+| Ledgrly (every schema except fpa and the system schemas) | unchanged | fingerprints (md5) taken just before and after the apply, all **identical**: functions `039fd60d…` (477 functions), policies `58a8fa48…` (203 policies), tables and views (name, kind, row security, ACL) `b044ca78…` |
+| `sync_runs` | existing rows default to `actuals` | 3 rows, all `actuals` |
+
+### Anonymous-key test (`scripts/p2a-smoke.mjs`; keys from the environment, never printed)
+
+**12 of 12 calls refused.** Both the legacy anon key and the publishable key were tried against:
+- RPC `import_balances`, `balance_accounts`, `cash_position` and `save_budget_lines`;
+- GET and POST on `balances_monthly`.
+
+Every call returned `401 {"code":"42501", "message":"permission denied for schema fpa"}`.
+
+Control: `GET public.companies` with the publishable key still returns 200 (`[]`), as before.
+
+### Test entities and Phase 1 figures
+
+The entities, their data and the figures are unchanged. Counts and sums were taken just before and
+just after the apply, and are identical:
+
+| Entity | Before and after |
+|---|---|
+| test 1 | 1 connection, **15,000** actual rows (sum −1,476,916.28), 18 mappings, 2 sync runs |
+| Walkthrough Test 1 | 1 connection, 193 actual rows (sum −86,493.07), 17 mappings, 2 versions, 192 plan lines (sum −223,087.33), 1 sync run |
+| Walkthrough Test 2 | empty |
+
+`fpa.variance` for Walkthrough Test 1, Dec 2025: Revenue **65,024.39**, Net profit **4,095.00**. These
+match the Gate 1 figures. There is no Cash and bank line.
+
+Nothing was deleted.
+
+### Next
+
+You gave the go-ahead (26 Nov) to continue into 2B, the KPI sign-off and the demo materials. That work
+is reported in `docs/reports/P2-B.md`.
+
+---
 
 ## Round 2 (26 Nov 2026): `cash_position.cash_accounts`
 
