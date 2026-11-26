@@ -1,16 +1,21 @@
 // CSV import (Phase 1, step 1B): choose a file, match its columns, answer two questions about its
 // numbers, check every row in the browser, then import in one transaction on the server.
+// Phase 2: the first question is what the file holds. P&L movements go to fpa.import_actuals as
+// before; month-end balances (trial-balance sign, no questions about the numbers) go to
+// fpa.import_balances, and the preview warns (never blocks) when an account already mapped to Cash
+// and bank has no row for a month in the file.
 // Fails closed: nothing is sent while any row has a problem, an error is never shown as success,
 // and an import whose outcome is unknown says so (docs/ui-rules.md sections 3 and 6).
 import { useId, useState, type ChangeEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  columnMapProblems, CsvSyntaxError, FIELD_LABELS, FIELDS, guessColumns, IMPORT_LIMITS, monthOf, parseCsv, prepareImport,
+  columnMapProblems, CsvSyntaxError, FIELD_LABELS, FIELDS, guessColumns, IMPORT_LIMITS, missingCashRows, missingCashText, monthOf, parseCsv, prepareImport,
   type ColumnMap, type CsvRow, type Currency, type Period, type Prepared,
 } from '../../engine';
 import { downloadCSV } from '../../design/downloadCSV';
+import { dataChanged } from '../../lib/dataEvents';
 import { callMessage } from '../../lib/errors';
-import { importActuals, type Connection, type ImportResult } from './api';
+import { importActuals, importBalances, type BalanceImportResult, type Connection, type ImportKind, type ImportResult } from './api';
 import { dateTime, drCr, monthLabel, monthsSummary, plural } from './format';
 
 export interface ImportWizardProps {
@@ -20,6 +25,10 @@ export interface ImportWizardProps {
   fiscalYearStartMonth: number;
   /** Months already imported into this connection (they will be replaced); null while unknown. */
   importedMonths: ReadonlySet<Period> | null;
+  /** Phase 2: months of balances already imported (replaced by a balances file); null while unknown. */
+  importedBalanceMonths?: ReadonlySet<Period> | null;
+  /** Phase 2: codes of this connection's accounts mapped to Cash and bank; null while unknown. */
+  cashCodes?: ReadonlySet<string> | null;
   mapPath: string;
   /** Called after any attempt that reached the server, so the page reloads its status. */
   onAttempted: () => void;
@@ -35,7 +44,7 @@ type Step =
   | { name: 'columns'; file: FileData; map: ColumnMap; answers: Answers; error?: string }
   | { name: 'preview'; file: FileData; map: ColumnMap; answers: Answers; prepared: Prepared }
   | { name: 'importing'; file: FileData; answers: Answers; prepared: Prepared }
-  | { name: 'done'; file: FileData; answers: Answers; prepared: Prepared; result: ImportResult }
+  | { name: 'done'; file: FileData; answers: Answers; prepared: Prepared; result: ImportResult | BalanceImportResult }
   | { name: 'failed'; file: FileData; map: ColumnMap; answers: Answers; prepared: Prepared; message: string; certain: boolean };
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -47,7 +56,18 @@ export const TEMPLATE_ROWS = [
   ['5000', 'Rent', '2025-01', '1500.00'],
 ];
 
-export function answersText(a: Answers): string[] {
+/** Phase 2: month-end (closing) balances, trial-balance sign: money in the bank positive, an overdraft negative. */
+export const BALANCES_TEMPLATE_ROWS = [
+  ['account_code', 'account_name', 'month', 'amount'],
+  ['1210', 'Bank current account', '2025-01', '15000.00'],
+  ['1220', 'Bank deposit account', '2025-01', '5000.00'],
+  ['1100', 'Trade debtors', '2025-01', '4200.00'],
+];
+
+export const BALANCES_TEXT = 'Month-end (closing) balances, trial-balance sign: money in the bank is positive, an overdraft negative. Used as they are.';
+
+export function answersText(a: Answers, kind: ImportKind = 'actuals'): string[] {
+  if (kind === 'balances') return [BALANCES_TEXT];
   return [
     a.ytd ? 'Amounts are year-to-date balances (turned into monthly movements).' : 'Amounts are monthly movements.',
     a.incomePositive ? 'Income is positive in the file (every sign was flipped).' : 'Income is negative in the file (trial-balance style, used as it is).',
@@ -56,7 +76,9 @@ export function answersText(a: Answers): string[] {
 
 export function ImportWizard(props: ImportWizardProps) {
   const [step, setStep] = useState<Step>({ name: 'choose' });
+  const [kind, setKind] = useState<ImportKind>('actuals');
   const ids = useId();
+  const balances = kind === 'balances';
   const currentMonth = monthOf(props.today ?? new Date());
 
   async function onFile(e: ChangeEvent<HTMLInputElement>) {
@@ -94,7 +116,8 @@ export function ImportWizard(props: ImportWizardProps) {
   function check(file: FileData, map: ColumnMap, answers: Answers) {
     const problems = columnMapProblems(map, file.headers.length);
     if (problems.length) { setStep({ name: 'columns', file, map, answers, error: problems.join(' ') }); return; }
-    const prepared = prepareImport(file.rows, map, { ...answers, fiscalYearStartMonth: props.fiscalYearStartMonth, currentMonth, currency: props.currency });
+    const opts = balances ? { ytd: false, incomePositive: false, balances: true } : answers;
+    const prepared = prepareImport(file.rows, map, { ...opts, fiscalYearStartMonth: props.fiscalYearStartMonth, currentMonth, currency: props.currency });
     setStep({ name: 'preview', file, map, answers, prepared });
   }
 
@@ -102,8 +125,11 @@ export function ImportWizard(props: ImportWizardProps) {
     if (prepared.problems.length || prepared.payload.length === 0) return;
     setStep({ name: 'importing', file, answers, prepared });
     try {
-      const result = await importActuals(props.entityId, props.connection.id, prepared.payload, file.name);
+      const result = balances
+        ? await importBalances(props.entityId, props.connection.id, prepared.payload, file.name)
+        : await importActuals(props.entityId, props.connection.id, prepared.payload, file.name);
       setStep({ name: 'done', file, answers, prepared, result });
+      dataChanged(props.entityId);
     } catch (err) {
       const code = (err as { code?: unknown }).code;
       // A database error code means the transaction was undone. Without one (the network failed,
@@ -120,17 +146,39 @@ export function ImportWizard(props: ImportWizardProps) {
   if (step.name === 'choose') {
     return (
       <div>
-        <p className="f-hint" style={{ marginBottom: 10 }}>
-          A CSV file with one row per account per month: account code, account name (optional), month (2025-01, or a date such
-          as 31/01/2025, day first) and amount. Amounts like -1200.50, 1,200.50, {props.currency === 'GBP' ? '£' : '€'}1,200.50, or (1,200.50) for a
-          negative; no other currency sign. Debits positive, credits negative, unless you say otherwise on the next step. At most
-          20,000 rows and 5 MB. Importing a month replaces everything already imported for that month.
-        </p>
+        <fieldset className="f-group">
+          <legend className="f-label">What does the file hold?</legend>
+          <label className="radio"><input type="radio" name={`${ids}-kind`} checked={!balances} onChange={() => setKind('actuals')} /> P&amp;L movements (income and costs, month by month)</label>
+          <label className="radio"><input type="radio" name={`${ids}-kind`} checked={balances} onChange={() => setKind('balances')} /> Month-end balances (bank, cash and other balance-sheet accounts)</label>
+        </fieldset>
+        {balances ? (
+          <p className="f-hint" style={{ marginBottom: 10 }}>
+            A CSV file with one row per account per month-end: account code, account name (optional), month (2025-01, or a date such
+            as 31/01/2025, day first) and the closing balance. Debits positive, credits negative: money in the bank is positive, an
+            overdraft negative. At most 20,000 rows and 5 MB. Importing a month replaces every balance already imported for that month.
+          </p>
+        ) : (
+          <p className="f-hint" style={{ marginBottom: 10 }}>
+            A CSV file with one row per account per month: account code, account name (optional), month (2025-01, or a date such
+            as 31/01/2025, day first) and amount. Amounts like -1200.50, 1,200.50, {props.currency === 'GBP' ? '£' : '€'}1,200.50, or (1,200.50) for a
+            negative; no other currency sign. Debits positive, credits negative, unless you say otherwise on the next step. At most
+            20,000 rows and 5 MB. Importing a month replaces everything already imported for that month.
+          </p>
+        )}
         <div className="row-gap" style={{ marginBottom: 12 }}>
           <label className="btn btn-p" htmlFor={`${ids}-file`} style={{ display: 'inline-flex', alignItems: 'center' }}>Choose a CSV file</label>
           <input id={`${ids}-file`} className="sr-only" type="file" accept=".csv,text/csv" onChange={onFile} aria-label="CSV file to import" />
-          <button type="button" className="btn btn-s btn-sm" onClick={() => downloadCSV('klaro-actuals-template.csv', TEMPLATE_ROWS)}>Download the template</button>
-          <a className="btn btn-s btn-sm link-btn" href="/samples/sample-actuals.csv" download>Download the sample file</a>
+          {balances ? (
+            <>
+              <button type="button" className="btn btn-s btn-sm" onClick={() => downloadCSV('klaro-balances-template.csv', BALANCES_TEMPLATE_ROWS)}>Download the balances template</button>
+              <a className="btn btn-s btn-sm link-btn" href="/samples/sample-balances.csv" download>Download the balances sample</a>
+            </>
+          ) : (
+            <>
+              <button type="button" className="btn btn-s btn-sm" onClick={() => downloadCSV('klaro-actuals-template.csv', TEMPLATE_ROWS)}>Download the template</button>
+              <a className="btn btn-s btn-sm link-btn" href="/samples/sample-actuals.csv" download>Download the sample file</a>
+            </>
+          )}
         </div>
         {step.error && <p className="msg msg-error" role="alert">{step.error}</p>}
       </div>
@@ -143,7 +191,7 @@ export function ImportWizard(props: ImportWizardProps) {
     const setAns = (a: Partial<Answers>) => setStep({ ...step, answers: { ...answers, ...a } });
     return (
       <div>
-        <h3 className="step-title">1. Match the columns in {file.name}</h3>
+        <h3 className="step-title">1. Match the columns in {file.name}{balances && ' (month-end balances)'}</h3>
         <div className="grid-fields">
           {FIELDS.map(f => (
             <div className="f-group" key={f}>
@@ -155,17 +203,23 @@ export function ImportWizard(props: ImportWizardProps) {
             </div>
           ))}
         </div>
-        <h3 className="step-title">2. What do the numbers mean?</h3>
-        <fieldset className="f-group">
-          <legend className="f-label">Are the amounts monthly movements or year-to-date balances?</legend>
-          <label className="radio"><input type="radio" name={`${ids}-ytd`} checked={!answers.ytd} onChange={() => setAns({ ytd: false })} /> Monthly movements (each month on its own)</label>
-          <label className="radio"><input type="radio" name={`${ids}-ytd`} checked={answers.ytd} onChange={() => setAns({ ytd: true })} /> Year-to-date balances (Klaro works out each month, within financial years starting in {MONTH_NAMES[props.fiscalYearStartMonth - 1]})</label>
-        </fieldset>
-        <fieldset className="f-group">
-          <legend className="f-label">Does income appear as a positive number in the file?</legend>
-          <label className="radio"><input type="radio" name={`${ids}-sign`} checked={!answers.incomePositive} onChange={() => setAns({ incomePositive: false })} /> No: income is negative, costs positive (trial-balance style, as in the template)</label>
-          <label className="radio"><input type="radio" name={`${ids}-sign`} checked={answers.incomePositive} onChange={() => setAns({ incomePositive: true })} /> Yes: income is positive (Klaro flips every sign before importing)</label>
-        </fieldset>
+        {balances ? (
+          <p className="f-hint" style={{ margin: '8px 0 12px' }}>{BALANCES_TEXT}</p>
+        ) : (
+          <>
+            <h3 className="step-title">2. What do the numbers mean?</h3>
+            <fieldset className="f-group">
+              <legend className="f-label">Are the amounts monthly movements or year-to-date balances?</legend>
+              <label className="radio"><input type="radio" name={`${ids}-ytd`} checked={!answers.ytd} onChange={() => setAns({ ytd: false })} /> Monthly movements (each month on its own)</label>
+              <label className="radio"><input type="radio" name={`${ids}-ytd`} checked={answers.ytd} onChange={() => setAns({ ytd: true })} /> Year-to-date balances (Klaro works out each month, within financial years starting in {MONTH_NAMES[props.fiscalYearStartMonth - 1]})</label>
+            </fieldset>
+            <fieldset className="f-group">
+              <legend className="f-label">Does income appear as a positive number in the file?</legend>
+              <label className="radio"><input type="radio" name={`${ids}-sign`} checked={!answers.incomePositive} onChange={() => setAns({ incomePositive: false })} /> No: income is negative, costs positive (trial-balance style, as in the template)</label>
+              <label className="radio"><input type="radio" name={`${ids}-sign`} checked={answers.incomePositive} onChange={() => setAns({ incomePositive: true })} /> Yes: income is positive (Klaro flips every sign before importing)</label>
+            </fieldset>
+          </>
+        )}
         {step.error && <p className="msg msg-error" role="alert" style={{ marginBottom: 12 }}>{step.error}</p>}
         <div className="row-gap">
           <button type="button" className="btn btn-p" onClick={() => check(file, map, answers)}>Check the file</button>
@@ -176,7 +230,7 @@ export function ImportWizard(props: ImportWizardProps) {
   }
 
   if (step.name === 'importing') {
-    return <p className="loading" role="status">Importing {plural(step.prepared.payload.length, 'row')} from {step.file.name}… Keep this page open.</p>;
+    return <p className="loading" role="status">Importing {plural(step.prepared.payload.length, balances ? 'balance' : 'row')} from {step.file.name}… Keep this page open.</p>;
   }
 
   if (step.name === 'done') {
@@ -191,12 +245,21 @@ export function ImportWizard(props: ImportWizardProps) {
           <dt>Months replaced</dt><dd>{monthsSummary(result.months_replaced)}</dd>
           <dt>Rows removed</dt><dd>{result.rows_removed.toLocaleString('en-IE')}</dd>
           <dt>Rows added</dt><dd>{result.rows_added.toLocaleString('en-IE')}</dd>
-          <dt>Actuals through</dt><dd>{monthLabel(result.actuals_through)}</dd>
-          <dt>Last synced</dt><dd>{dateTime(result.last_synced_at)}</dd>
-          <dt>Your answers</dt><dd>{answersText(answers).map(t => <div key={t}>{t}</div>)}</dd>
+          {'balances_through' in result ? (
+            <>
+              <dt>Balances through</dt><dd>{monthLabel(result.balances_through)}</dd>
+              <dt>Imported at</dt><dd>{dateTime(result.imported_at)}</dd>
+            </>
+          ) : (
+            <>
+              <dt>Actuals through</dt><dd>{monthLabel(result.actuals_through)}</dd>
+              <dt>Last synced</dt><dd>{dateTime(result.last_synced_at)}</dd>
+            </>
+          )}
+          <dt>{balances ? 'The amounts' : 'Your answers'}</dt><dd>{answersText(answers, kind).map(t => <div key={t}>{t}</div>)}</dd>
         </dl>
         <div className="row-gap" style={{ marginTop: 12 }}>
-          <Link className="btn btn-p link-btn" to={props.mapPath}>Map the accounts</Link>
+          <Link className="btn btn-p link-btn" to={props.mapPath}>{balances ? 'Map the balance accounts' : 'Map the accounts'}</Link>
           {restart}
         </div>
       </section>
@@ -206,12 +269,13 @@ export function ImportWizard(props: ImportWizardProps) {
   // preview or failed
   const { file, map, answers, prepared } = step;
   const p = prepared;
-  const known = props.importedMonths;
+  const known = balances ? props.importedBalanceMonths ?? null : props.importedMonths;
   const replacing = known ? p.months.filter(m => known.has(m)) : [];
+  const cashMissing = balances && props.cashCodes ? missingCashRows(p.payload, props.cashCodes) : [];
   const canImport = p.problems.length === 0 && p.payload.length > 0;
   return (
     <section aria-labelledby={`${ids}-preview`}>
-      <h3 className="step-title" id={`${ids}-preview`}>3. Check before importing {file.name}</h3>
+      <h3 className="step-title" id={`${ids}-preview`}>{balances ? '2' : '3'}. Check before importing {file.name}{balances && ' (month-end balances)'}</h3>
       {step.name === 'failed' && (
         <div className="msg msg-error" role="alert" style={{ marginBottom: 12 }}>
           <strong>{step.certain ? 'Nothing was imported.' : 'Klaro could not confirm whether the import finished.'}</strong>{' '}
@@ -226,12 +290,22 @@ export function ImportWizard(props: ImportWizardProps) {
         <dt>Accounts</dt><dd>{p.accounts.toLocaleString('en-IE')}</dd>
         <dt>Months</dt><dd>{monthsSummary(p.months)}</dd>
         <dt>Debits / credits</dt><dd>{drCr(p.debits, props.currency)} / {drCr(p.credits, props.currency)}</dd>
-        <dt>Your answers</dt><dd>{answersText(answers).map(t => <div key={t}>{t}</div>)}</dd>
+        <dt>{balances ? 'The amounts' : 'Your answers'}</dt><dd>{answersText(answers, kind).map(t => <div key={t}>{t}</div>)}</dd>
       </dl>
       {replacing.length > 0 && (
         <p className="msg msg-warn" style={{ marginTop: 12 }}>
           Already imported, and will be replaced completely: {monthsSummary(replacing)}. Accounts missing from this file for those months will be removed.
         </p>
+      )}
+      {balances && p.problems.length === 0 && !props.cashCodes && (
+        <p className="msg msg-warn" style={{ marginTop: 12 }}>Klaro could not check which accounts are mapped to Cash and bank.</p>
+      )}
+      {cashMissing.length > 0 && p.problems.length === 0 && (
+        <div className="msg msg-warn" style={{ marginTop: 12 }} data-testid="cash-missing">
+          {cashMissing.slice(0, 10).map(m => <div key={`${m.code}|${m.month}`}>{missingCashText(m)}</div>)}
+          {cashMissing.length > 10 && <div>And {(cashMissing.length - 10).toLocaleString('en-IE')} more like this.</div>}
+          <div style={{ marginTop: 4 }}>You can still import; check the file if a bank account is missing by mistake.</div>
+        </div>
       )}
       {!known && (
         <p className="msg msg-warn" style={{ marginTop: 12 }}>
@@ -264,7 +338,7 @@ export function ImportWizard(props: ImportWizardProps) {
       {canImport && (
         <div className="table-wrap" style={{ marginTop: 12 }}>
           <table className="gl-table" aria-label="First rows to import">
-            <caption className="f-hint" style={{ textAlign: 'left', padding: '0 0 6px' }}>First {Math.min(10, p.payload.length)} rows as they will be imported (debits positive)</caption>
+            <caption className="f-hint" style={{ textAlign: 'left', padding: '0 0 6px' }}>First {Math.min(10, p.payload.length)} rows as they will be imported (debits positive{balances ? '; closing balances' : ''})</caption>
             <thead><tr><th scope="col">Account</th><th scope="col">Name</th><th scope="col">Month</th><th scope="col" className="r">Amount</th></tr></thead>
             <tbody>
               {p.payload.slice(0, 10).map((r, i) => (
@@ -276,9 +350,9 @@ export function ImportWizard(props: ImportWizardProps) {
       )}
       <div className="row-gap" style={{ marginTop: 12 }}>
         <button type="button" className="btn btn-p" disabled={!canImport} onClick={() => runImport(file, map, answers, prepared)}>
-          {canImport ? `Import ${plural(p.payload.length, 'row')}` : 'Import'}
+          {canImport ? `Import ${plural(p.payload.length, balances ? 'balance' : 'row')}` : 'Import'}
         </button>
-        <button type="button" className="btn btn-s btn-sm" onClick={() => setStep({ name: 'columns', file, map, answers })}>Change columns or answers</button>
+        <button type="button" className="btn btn-s btn-sm" onClick={() => setStep({ name: 'columns', file, map, answers })}>{balances ? 'Change columns' : 'Change columns or answers'}</button>
         {restart}
       </div>
     </section>

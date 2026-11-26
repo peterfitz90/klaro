@@ -10,3 +10,6 @@ export * from './lineSuggest';
 export * from './budget';
 export * from './compare';
 export * from './kpi';
+export * from './cash';
+export * from './balances';
+export * from './scenarios';

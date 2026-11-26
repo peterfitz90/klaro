@@ -9,6 +9,7 @@
 // - While any account is unmapped, the profit figures are marked incomplete, with how many.
 // - If the latest month of actuals is this calendar month: "month may be incomplete" beside Revenue
 //   (month) and Net profit.
+import type { CashKpis } from './cash';
 import type { Period } from './period';
 
 export interface KpiInput {
@@ -25,9 +26,25 @@ export interface KpiInput {
 
 export interface KpiTile {
   label: 'Revenue (month)' | 'Net profit' | 'Cash balance' | 'Runway (months)';
-  /** null shows "—". */
+  /** null shows "—" (unless `text` is set). */
   cents: bigint | null;
+  /** A figure that is not money (Runway: "7.4", "0.0", "n/a (not burning cash)"). */
+  text?: string | null;
   notes: string[];
+}
+
+/**
+ * Phase 2: puts the Cash balance and Runway tiles from src/engine/cash.ts in place of the Phase 1
+ * placeholders. `cash` null means the cash KPIs are switched off (CASH_KPIS_LIVE): "—" with
+ * "Waiting for sign-off".
+ */
+export function withCashTiles(tiles: readonly KpiTile[], cash: CashKpis | null): KpiTile[] {
+  return tiles.map(t => {
+    if (t.label !== 'Cash balance' && t.label !== 'Runway (months)') return t;
+    if (!cash) return { label: t.label, cents: null, text: null, notes: ['Waiting for sign-off'] };
+    const c = t.label === 'Cash balance' ? cash.cash : cash.runway;
+    return { label: t.label, cents: c.cents, text: c.text, notes: c.notes };
+  });
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

@@ -123,6 +123,17 @@ export async function editLine(lineId: string, amount: string): Promise<void> {
   if (!row) throw new DbError('save the line', { message: 'the database did not confirm the change' });
 }
 
+/**
+ * Phase 2: saves a set of hand edits to one budget version through fpa.save_budget_lines (0004), in
+ * one transaction: every line is saved, or none is (and the database says why). Amounts in stored
+ * sign. At most 1,200 lines. Returns the count the database confirms; anything else is an error.
+ */
+export async function saveBudgetLines(versionId: string, lines: { id: string; amount: string }[]): Promise<number> {
+  const n = await must(db().rpc('save_budget_lines', { p_version_id: versionId, p_lines: lines }), 'save the budget');
+  if (n !== lines.length) throw new DbError('save the budget', { message: 'the database did not confirm every line' });
+  return n;
+}
+
 /** fpa.variance for a range of months (at most 36), read a page at a time. */
 export function variance(entityId: string, versionId: string | null, from: Period, to: Period): Promise<VarianceRow[]> {
   return pageAll<VarianceRow>(

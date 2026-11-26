@@ -164,6 +164,8 @@ export interface ImportOptions {
   currentMonth: Period;
   /** The entity's currency: a € or £ sign on an amount must match it. */
   currency: Currency;
+  /** Phase 2: the file holds month-end balances (not P&L movements); the movements-or-YTD check is skipped. */
+  balances?: boolean;
 }
 
 /** A problem with a line of the file (line 0 means the file as a whole). */
@@ -263,7 +265,7 @@ export function prepareImport(rows: readonly CsvRow[], map: ColumnMap, opts: Imp
 
   // Sanity check on what the figures look like, before any conversion (ui-rules 3).
   const look = growthShare(parsed, opts.fiscalYearStartMonth);
-  if (look.eligible > 0) {
+  if (!opts.balances && look.eligible > 0) {
     if (!opts.ytd && look.growing / look.eligible >= 0.6) {
       warnings.push(`${look.growing} of ${look.eligible} accounts only ever grow in one direction across the year. These look like year-to-date balances. If they are, choose "Year-to-date balances".`);
     }

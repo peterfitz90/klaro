@@ -1,0 +1,30 @@
+Grants evidence for 0004_fpa_balances_cash.sql (Klaro Phase 2A)
+Source: the report raised by db/out/test_0004.sql (sha256 14c9af52e5e5f9ad...; 0004 sha256 946fd7b6..., the
+version with cash_position.cash_accounts), sent as exact text through the Supabase connector on 26 Nov 2026
+and rolled back by its own final RAISE. 0004 is NOT applied. The evidence below is identical, line for line,
+to the 25 Nov run of the earlier version (143 passes); only the pass count changed.
+Result line: 0 failure(s), 153 pass(es)
+
+== Tables 0004 adds or changes: row security and ACL, less the owner entry ==
+balances_monthly: rls=t authenticated=r/postgres
+plan_line_defs: rls=t authenticated=r/postgres
+sync_runs: rls=t authenticated=r/postgres
+
+== Policies 0004 adds ==
+balances_monthly_read SELECT to authenticated using (entity_id = ANY (ARRAY( SELECT my_entity_ids('viewer'::text) AS my_entity_ids)))
+All policies in fpa: 43, all TO authenticated only: true
+
+== New and replaced functions: ACL, security, volatility, EXECUTE by role ==
+fpa.balance_accounts(uuid): definer=f stable acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
+fpa.cash_position(uuid): definer=f stable acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
+fpa.import_balances(uuid,uuid,jsonb,text): definer=t volatile acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
+fpa.save_budget_lines(uuid,jsonb): definer=f volatile acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
+fpa.variance(uuid,uuid,date,date): definer=f stable acl=postgres=X/postgres,authenticated=X/postgres | anon=f authenticated=t service_role=f PUBLIC=f
+
+== Verdict, all 31 fpa functions ==
+Executable by PUBLIC: none
+Executable by anon: none
+Executable by service_role: none
+Executable by authenticated: account_map, add_member, balance_accounts, cash_position, create_budget_from_actuals, create_entity, import_actuals, import_balances, is_entity_member, member_for_connection, member_for_driver, member_for_plan, member_for_scenario, member_for_version, member_in_jurisdiction, my_entity_ids, save_budget_lines, set_line_map, set_member, unmapped_accounts, variance
+
+plpgsql_check (from db/out/dryrun_apply_0004.sql, sha256 46d329e7cc6919f7..., 26 Nov 2026): 14 PL/pgSQL functions checked, 0 findings.
