@@ -51,8 +51,16 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('Scenarios panel', () => {
-  it('is switched off until its own walk-through passes', () => {
-    expect(SCENARIOS_LIVE).toBe(false);
+  it('is switched on (its walk-through passed on the preview, 26 Nov 2026)', () => {
+    expect(SCENARIOS_LIVE).toBe(true);
+  });
+  it('reads stored values with trailing zeros ("10.000000") as 10', async () => {
+    const { stored } = await import('./ScenariosPanel');
+    expect(stored('10.000000')).toBe('10');
+    expect(stored('-3.330000')).toBe('-3.33');
+    expect(stored(7.5)).toBe('7.5');
+    expect(stored('0.000000')).toBe('0');
+    expect(stored(12)).toBe('12');
   });
   it('Base plus Upside and Downside by default (not saved yet); opening it writes nothing', async () => {
     show();

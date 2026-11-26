@@ -9,5 +9,6 @@ export const KPI_STRIP_LIVE = true;
 export const CASH_KPIS_LIVE = true;
 
 // Phase 3 slice: the Scenarios panel on Plan (src/features/plan/ScenariosPanel.tsx). Off until its own
-// walk-through passes (Peter, 26 Nov 2026). When false, nothing of it is shown.
-export const SCENARIOS_LIVE = true; // preview branch only, for the walk-through (phase-2 keeps it off until it passes)
+// walk-through passed (Peter, 26 Nov 2026); it passed on the preview on 26 Nov 2026
+// (docs/reports/P3-LITE.md), so it is on. When false, nothing of it is shown.
+export const SCENARIOS_LIVE = true;
