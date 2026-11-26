@@ -7,3 +7,7 @@ export const KPI_STRIP_LIVE = true;
 // 26 Nov 2026, for the prototype (docs/kpi-definitions.md). Setting this to false shows those two
 // tiles as "—" with "Waiting for sign-off" and leaves Revenue and Net profit as they are.
 export const CASH_KPIS_LIVE = true;
+
+// Phase 3 slice: the Scenarios panel on Plan (src/features/plan/ScenariosPanel.tsx). Off until its own
+// walk-through passes (Peter, 26 Nov 2026). When false, nothing of it is shown.
+export const SCENARIOS_LIVE = false;

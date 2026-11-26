@@ -9,7 +9,9 @@ import { useLoad } from '../../lib/useLoad';
 import type { Entity, Role } from '../entities/model';
 import type { PlanLineDef } from '../connect/api';
 import { dateTime, monthLabel, plainAmount, plural } from '../connect/format';
+import { SCENARIOS_LIVE } from '../../app/shell/kpiSwitch';
 import { budgetLines, saveBudgetLines, setLocked, type BudgetLine, type Plan, type Version } from './api';
+import { ScenariosPanel } from './ScenariosPanel';
 
 export interface BudgetViewProps {
   entity: Entity;
@@ -19,9 +21,11 @@ export interface BudgetViewProps {
   role: Role;
   onRebuild: (firstMonth: Period | null) => void;
   onChanged: (v: Version) => void;
+  /** Phase 3 slice: show the Scenarios panel (SCENARIOS_LIVE; tests pass it directly). */
+  scenarios?: boolean;
 }
 
-export function BudgetView({ entity, plan, defs, version, role, onRebuild, onChanged }: BudgetViewProps) {
+export function BudgetView({ entity, plan, defs, version, role, onRebuild, onChanged, scenarios = SCENARIOS_LIVE }: BudgetViewProps) {
   const ids = useId();
   const canEdit = role === 'owner' || role === 'editor';
   const locked = version.locked_at !== null;
@@ -201,6 +205,9 @@ export function BudgetView({ entity, plan, defs, version, role, onRebuild, onCha
               </div>
             )}
           </>
+        )}
+        {scenarios && data && months.length > 0 && (
+          <ScenariosPanel key={`${version.id}|${shownYear ?? ''}`} entity={entity} plan={plan} version={version} role={role} lines={data} months={months} />
         )}
       </div>
     </section>
