@@ -3,6 +3,8 @@
 // section, no budget, no balances, no scenarios, a failed call, a viewer, and Section 2 against
 // Compare's own figures for the same inputs.
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { REPORT_LIVE } from '../../app/shell/kpiSwitch';
@@ -269,3 +271,42 @@ describe('Report: print', () => {
     print.mockRestore();
   });
 });
+
+describe('Report: print in colour (Peter, 26 Nov 2026)', () => {
+  const css = readFileSync(resolve(process.cwd(), 'src/features/report/report.css'), 'utf8');
+  const print = css.slice(css.indexOf('@media print'));
+  const colours = Object.fromEntries([...print.matchAll(/--print-([a-z-]+):\s*(#[0-9a-f]{6})/g)].map(m => [m[1], m[2]]));
+  /** WCAG contrast ratio of a hex colour against white. */
+  const contrast = (hex: string) => {
+    const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+    const [r, g, b] = [1, 3, 5].map(i => lin(parseInt(hex.slice(i, i + 2), 16) / 255)) as [number, number, number];
+    return 1.05 / (0.2126 * r + 0.7152 * g + 0.0722 * b + 0.05);
+  };
+  it('colours text and lines pass contrast on white (4.5:1); the bar fill 3:1; tints stay light', () => {
+    for (const k of ['accent', 'info', 'good', 'bad', 'warn', 'muted']) expect(contrast(colours[k] ?? '#ffffff'), k).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(colours.bar ?? '#ffffff')).toBeGreaterThanOrEqual(3);
+    for (const k of ['tint-accent', 'tint-head', 'tint-warn']) expect(contrast(colours[k] ?? '#000000'), k).toBeLessThan(1.15);
+  });
+  it('prints the colours whatever the "Background graphics" setting; A4 portrait; rows never split; no sidebar or nav', () => {
+    expect(print).toContain('print-color-adjust: exact');
+    expect(print).toContain('-webkit-print-color-adjust: exact');
+    expect(print).toMatch(/@page \{ size: A4; /);
+    expect(print).toMatch(/\.report tr,[^{]*\{ break-inside: avoid/);
+    expect(print).toMatch(/\.sidebar, \.topbar, \.no-print/);
+  });
+  it('greyscale: every colour-coded cell also has its arrow and word; the charts keep their legend and values table', async () => {
+    show();
+    const t = await screen.findByTestId('report-bva');
+    await waitFor(() => expect((screen.getByLabelText('Budget') as HTMLSelectElement).value).toBe(V1.id));
+    const good = [...t.querySelectorAll('.fav-good')], bad = [...t.querySelectorAll('.fav-bad')];
+    expect(good.length + bad.length).toBeGreaterThan(0);
+    expect(bad.length).toBeGreaterThan(0); // payroll over budget
+    for (const e of good) expect(e.textContent).toBe('▲ Favourable');
+    for (const e of bad) expect(e.textContent).toBe('▼ Unfavourable');
+    const legend = (await screen.findByRole('img', { name: /^Revenue and net profit by month/ })).closest('figure');
+    expect([...(legend?.querySelectorAll('.legend-item') ?? [])].map(e => e.textContent)).toEqual(['Revenue', 'Net profit', 'Revenue budget (dashed)', 'Net profit budget (dashed)']);
+    expect(within(screen.getByRole('table', { name: 'Revenue and net profit by month' })).getAllByRole('row')).toHaveLength(1 + 3); // header + Jan..Mar
+    expect((await screen.findByRole('img', { name: /^Month-end cash/ })).getAttribute('aria-label')).toContain('Mar 2026 €95,400.00');
+  });
+});
+
